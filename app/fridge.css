@@ -443,6 +443,7 @@ body {
   white-space: nowrap;
 }
 .stamp::before { content: "·"; margin-right: 5px; }
+.stamp.bare::before { content: none; }
 .n-sign .tag {
   margin-left: auto;
   font-size: 0.56rem;

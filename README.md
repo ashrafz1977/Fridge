@@ -8,6 +8,11 @@ It is built to look and behave like the real thing: brushed steel, a chrome
 handle, paper scraps at slight angles, and a magnet in your own colour
 holding up everything you wrote.
 
+It is built for the phone first, which is where a fridge app actually gets
+used. On a narrow screen the door is a column you scroll, notes open in a
+bottom sheet, and every target is thumb-sized. From 761px up it becomes a
+surface you arrange by dragging.
+
 ## What goes on the door
 
 Six magnets sit in the tray at the bottom. Click one to stick something up.
@@ -21,21 +26,36 @@ Six magnets sit in the tray at the bottom. Click one to stick something up.
 | **List** | A lined pad | A running checklist — groceries, packing, chores |
 | **Memory** | A polaroid | A sticker and a caption |
 
+Every note also carries:
+
+- **A pen.** Seven faces to write with — Pen, Neat, Loopy, Marker, Biro,
+  Typed and Printed — chosen per note and previewed as you pick it.
+- **A last-updated tag.** "Added 20m ago", or "Updated 2h ago" once someone
+  has changed it. Relative times refresh on the minute.
+- **Replies.** Anyone in the family can reply on a note, signed with their
+  own magnet colour. The last three show on the note; the rest unfold. A
+  reply is a conversation about the note, not an edit of it, so it leaves
+  the note's own last-updated tag alone.
+- **Add to calendar**, on anything with a date. See below.
+
 A month calendar hangs on the door as a seventh, permanent sheet. It shows a
 coloured pip on every day that has something on it — one pip per person — and
 its day list links back to the note on the door. `+ Appointment` on any day
-creates a dated card for it.
+creates a dated card for it. On a phone the month grid folds away by default,
+leaving the day's own agenda, so the notes are not pushed below the fold.
 
 ## Using it
 
-- **Click** a note to write on it; `Esc` or **Stick it up** closes it.
-- **Drag** a note anywhere on the door. Positions are shared, so the door
-  looks the same for the whole family, like a real fridge.
+- **Tap** a note to write on it. On a phone it opens as a bottom sheet; on a
+  wide screen it opens in place. `Esc` or **Stick it up** closes it.
+- **Drag** a note anywhere on the wide door. Positions are shared, so the
+  door looks the same for the whole family, like a real fridge.
 - **Keyboard**: `Tab` to a note, `Enter` to edit, arrow keys to move it
   (hold `Shift` to move further).
 - **Who's at the fridge?** in the name plate is how you sign your notes.
   Each person gets their own magnet colour. Nothing here needs an account.
-- On a phone the door becomes a single scrolling column, calendar first.
+- On a phone the door is a single scrolling column, newest note first, with
+  the calendar at the top.
 
 ## How it is shared
 
@@ -50,9 +70,23 @@ Storage sits behind one small interface with two implementations
   available. The door still works, it just isn't shared. The name plate says
   which of the two you are looking at.
 
-Documents live at `notes/<id>`, `roster/<id>` and `fridge/door`. Note
-positions are stored as fractions of a viewport-sized canvas, so a note keeps
-its place on the door across different screen sizes.
+Documents live at `notes/<id>`, `roster/<id>` and `fridge/door`. Replies are
+stored on the note document they belong to. Note positions are fractions of a
+viewport-sized canvas, so a note keeps its place on the door across different
+screen sizes.
+
+## Add to calendar
+
+Dated notes offer Google Calendar and Outlook deep links, plus the event
+details on the clipboard for anything else.
+
+There is deliberately no `.ics` file. Two things rule it out inside the
+Artifact viewer: the `downloads` capability's extension allowlist does not
+include `ics`, and the viewer sandbox makes ordinary download links — `<a
+download>`, `data:` and `blob:` hrefs included — inert. The Google Calendar
+link is the one route that reaches a phone's calendar app on both Android and
+iOS; iPhone users who keep everything in Apple Calendar get the copyable
+details instead, because iOS exposes no URL scheme for adding an event.
 
 All note text is written to the DOM with `textContent`, never `innerHTML`,
 because shared data is untrusted input.
