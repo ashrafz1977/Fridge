@@ -1,0 +1,26 @@
+{
+  "name": "family-fridge-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "API and session layer for The Family Fridge",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "apple-secret": "node ../scripts/apple-secret.mjs"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.45.4",
+    "cookie": "^1.1.1",
+    "express": "^5.2.1",
+    "nodemailer": "^10.0.9",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "jose": "^5.9.6"
+  }
+}

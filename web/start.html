@@ -1,0 +1,51 @@
+<title>The Family Fridge</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Caveat:wght@500;600;700&family=Oswald:wght@500;600&display=swap">
+<link rel="stylesheet" href="/fridge.css">
+<link rel="stylesheet" href="/auth.css">
+
+<div class="door-edge" aria-hidden="true"></div>
+
+<main class="gate">
+  <div class="card">
+    <p class="mark">The Family Fridge</p>
+    <h1>Start your <em>family group</em></h1>
+
+    <div class="who-strip" id="who">
+      <span class="dot" id="who-dot" aria-hidden="true"></span>
+      <span id="who-name">Loading…</span>
+      <button class="btn ghost swap" type="button" id="signout">Sign out</button>
+    </div>
+
+    <p class="notice bad" id="notice" hidden></p>
+
+    <div id="existing" hidden>
+      <p class="lede">You already belong to these:</p>
+      <div class="groups" id="groups"></div>
+      <p class="rule">or start another</p>
+    </div>
+
+    <p class="lede" id="lede">
+      A family group is one private fridge door. Give it a name, then invite the
+      people who should be able to write on it — nobody else can find or open it.
+    </p>
+
+    <form class="stack" id="form" novalidate>
+      <div class="field">
+        <label for="name">What should the group be called?</label>
+        <input id="name" name="name" type="text" maxlength="60" required
+               placeholder="The Hassan family" autocomplete="off">
+        <span class="tip">This is the name across the top of the door. You can change it later.</span>
+      </div>
+      <button class="btn wide" type="submit">Create the group</button>
+    </form>
+
+    <p class="switcher">
+      Been invited to someone else's fridge? Open the link in that email instead.
+    </p>
+  </div>
+
+  <p class="foot">You can belong to more than one group — your own home and your parents', say.</p>
+</main>
+
+<script type="module" src="/start.js"></script>

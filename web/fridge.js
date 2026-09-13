@@ -81,7 +81,16 @@
       if (v === null || v === undefined || v === false) continue;
       if (k === "class") node.className = v;
       else if (k === "text") node.textContent = v;
-      else if (k === "style") node.setAttribute("style", v);
+      /* Applied through the CSSOM rather than as a style attribute:
+         the server's Content-Security-Policy allows no inline style
+         attributes, and setProperty is not subject to it. */
+      else if (k === "style") {
+        for (const rule of String(v).split(";")) {
+          const at = rule.indexOf(":");
+          if (at < 1) continue;
+          node.style.setProperty(rule.slice(0, at).trim(), rule.slice(at + 1).trim());
+        }
+      }
       else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
       else node.setAttribute(k, v === true ? "" : String(v));
     }
@@ -165,12 +174,29 @@
     cal: { ym: TODAY.slice(0, 7), sel: TODAY },
     calOpen: localStorage.getItem("family-fridge/cal") === "1",
     peers: [],
+    account: null,        // the signed-in person, when there are accounts
+    households: [],       // every family group they belong to
+    household: null,      // the one whose door this is
   };
 
   const els = new Map();          // note id -> element
   let dragId = null;
 
-  const meMember = () => (state.me ? state.roster.get(state.me) : null) || null;
+  /* With accounts, who you are is the session — never a pick that can
+     go stale, and never the name picker, which does not exist there.
+     The roster is authoritative once it arrives; until then the
+     signed-in account stands in for it. */
+  const meMember = () => {
+    const listed = state.me ? state.roster.get(state.me) : null;
+    if (listed) return listed;
+    if (store.account && state.account) {
+      return {
+        name: state.account.displayName,
+        color: (state.household && state.household.color) || "#5c6675",
+      };
+    }
+    return null;
+  };
   const penOf = (note) => PENS[note.pen] || PENS[(KINDS[note.kind] || KINDS.sticky).pen] || PENS.pen;
   const repliesOf = (note) => (Array.isArray(note.replies) ? note.replies : []);
 
@@ -207,6 +233,18 @@
       setMember(id, v) { data.roster[id] = v; save("roster"); },
       delMember(id)    { delete data.roster[id]; save("roster"); },
       patchMeta(v)     { data.meta = { ...data.meta, ...v }; save("meta"); },
+      addReply(id, reply) {
+        const note = data.notes[id];
+        if (!note) return;
+        note.replies = [...(note.replies || []), reply].slice(-60);
+        save("notes");
+      },
+      delReply(id, replyId) {
+        const note = data.notes[id];
+        if (!note) return;
+        note.replies = (note.replies || []).filter((r) => r.id !== replyId);
+        save("notes");
+      },
       seed(notes, roster, meta) {
         if (Object.keys(data.notes).length) return false;
         data.notes = notes; data.roster = roster; data.meta = meta;
@@ -236,8 +274,140 @@
       setMember(id, v) { db.doc("roster/" + id).set(v).catch(shout); },
       delMember(id)    { db.doc("roster/" + id).delete().catch(shout); },
       patchMeta(v)     { db.doc("fridge/door").set({ ...state.meta, ...v }).catch(shout); },
+      addReply(id, reply) {
+        const note = state.notes.get(id);
+        if (!note) return;
+        db.doc("notes/" + id).update({ replies: [...repliesOf(note), reply].slice(-60) }).catch(shout);
+      },
+      delReply(id, replyId) {
+        const note = state.notes.get(id);
+        if (!note) return;
+        db.doc("notes/" + id).update({ replies: repliesOf(note).filter((r) => r.id !== replyId) }).catch(shout);
+      },
       seed()           { return false; },
     };
+  }
+
+  /* Talks to the server in supabase/ + server/: real accounts, real
+     family groups, one door per group. Reads are polled rather than
+     streamed because the session lives in httpOnly cookies, which the
+     page cannot read and so cannot hand to a realtime socket — a fair
+     trade for keeping the access token out of reach of any script. */
+  function apiStore() {
+    const subs = { notes: [], roster: [], meta: [] };
+    let csrf = "";
+    let inFlight = 0;
+    let quietUntil = 0;          // ignore polls just after our own write
+    let timer = null;
+    let lastJson = "";
+
+    const headers = () => ({ "content-type": "application/json", "x-fridge-csrf": csrf });
+
+    async function call(method, url, body) {
+      inFlight += 1;
+      quietUntil = Date.now() + 1500;
+      try {
+        const response = await fetch(url, {
+          method,
+          headers: headers(),
+          body: body === undefined ? undefined : JSON.stringify(body),
+          credentials: "same-origin",
+        });
+        if (response.status === 401) { window.location.href = "/signin"; return null; }
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          toast(payload.message || "That did not save. Try again.");
+          return null;
+        }
+        return payload;
+      } catch {
+        toast("No connection to the fridge. Your change is not saved yet.");
+        return null;
+      } finally {
+        inFlight -= 1;
+        refresh();
+      }
+    }
+
+    async function refresh() {
+      if (inFlight > 0) return;
+      let payload;
+      try {
+        const response = await fetch("/api/notes", { credentials: "same-origin" });
+        if (response.status === 401) { window.location.href = "/signin"; return; }
+        if (response.status === 409) { window.location.href = "/start"; return; }
+        if (!response.ok) return;
+        payload = await response.json();
+      } catch { return; }
+
+      if (inFlight > 0 || Date.now() < quietUntil) return;
+
+      const fingerprint = JSON.stringify(payload);
+      if (fingerprint === lastJson) return;
+      lastJson = fingerprint;
+
+      state.household = payload.household || null;
+      const roster = {};
+      for (const m of payload.members || []) roster[m.id] = { name: m.name, color: m.color, createdAt: 0 };
+      subs.roster.forEach((fn) => fn(roster));
+      subs.meta.forEach((fn) => fn({ name: (payload.household && payload.household.name) || "The Family Fridge" }));
+      subs.notes.forEach((fn) => fn(payload.notes || {}));
+    }
+
+    function poll() {
+      clearTimeout(timer);
+      timer = setTimeout(async () => { await refresh(); poll(); }, 8000);
+    }
+
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+    window.addEventListener("focus", () => refresh());
+
+    return {
+      shared: true,
+      account: true,
+      async open() {
+        const response = await fetch("/api/me", { credentials: "same-origin" });
+        const me = await response.json();
+        if (!me.signedIn) { window.location.href = "/signin"; return false; }
+        csrf = me.csrf;
+        state.account = me.user;
+        state.households = me.households || [];
+        state.me = me.user.id;
+        if (!me.current) { window.location.href = "/start"; return false; }
+        state.household = me.current;
+        await refresh();
+        poll();
+        return true;
+      },
+      onNotes(fn)  { subs.notes.push(fn); },
+      onRoster(fn) { subs.roster.push(fn); },
+      onMeta(fn)   { subs.meta.push(fn); },
+      setNote(id, v)   { call("PUT", `/api/notes/${encodeURIComponent(id)}`, apiNote(v)); },
+      patchNote(id, v) { call("PATCH", `/api/notes/${encodeURIComponent(id)}`, apiNote(v)); },
+      delNote(id)      { call("DELETE", `/api/notes/${encodeURIComponent(id)}`); },
+      setMember() {},
+      delMember() {},
+      patchMeta(v) {
+        if (!v.name || !state.household) return;
+        call("PATCH", `/api/households/${state.household.id}`, { name: v.name });
+      },
+      addReply(id, reply) { call("POST", `/api/notes/${encodeURIComponent(id)}/replies`, { body: reply.text }); },
+      delReply(id, replyId) { call("DELETE", `/api/replies/${encodeURIComponent(replyId)}`); },
+      seed() { return false; },
+      refresh,
+      request: call,
+      csrf: () => csrf,
+    };
+  }
+
+  /* Fields the server owns are not the browser's to send. */
+  function apiNote(note) {
+    const out = {};
+    for (const key of ["kind", "body", "title", "pen", "paper", "sticker", "tilt", "x", "y", "raised", "done", "date", "time", "items"]) {
+      if (note[key] !== undefined) out[key] = note[key];
+    }
+    if (out.raised !== undefined) out.raised = Math.round(out.raised);
+    return out;
   }
 
   let store = localStore();
@@ -293,6 +463,14 @@
   function paintStatus() {
     const s = $("#status");
     s.dataset.live = store.shared ? "1" : "0";
+    if (store.account) {
+      const count = state.roster.size;
+      s.textContent = count > 1 ? `Shared with ${count - 1} other${count > 2 ? "s" : ""}` : "Only you so far";
+      s.title = count > 1
+        ? "Everyone in this family group sees this door."
+        : "Invite your family from the name chip above.";
+      return;
+    }
     s.textContent = store.shared ? "Shared with the family" : "Saved on this device";
     s.title = store.shared
       ? "Everyone with the link sees this door, and changes show up live."
@@ -306,7 +484,11 @@
       dot.style.setProperty("--c", me.color);
       dot.textContent = me.name.slice(0, 1).toUpperCase();
       name.textContent = me.name;
-      $("#whoami").title = "Change who's at the fridge";
+      $("#whoami").title = store.account ? "Your family, invitations and account" : "Change who's at the fridge";
+    } else if (store.account && state.account) {
+      dot.style.setProperty("--c", "#9aa2ad");
+      dot.textContent = state.account.displayName.slice(0, 1).toUpperCase();
+      name.textContent = state.account.displayName;
     } else {
       dot.style.setProperty("--c", "#9aa2ad");
       dot.textContent = "?";
@@ -394,7 +576,11 @@
 
   function addNote(kind, extra) {
     const me = meMember();
-    if (!me) { openRoster(() => addNote(kind, extra)); return; }
+    if (!me) {
+      if (store.account) { toast("Still opening the fridge — try again in a second."); return; }
+      openRoster(() => addNote(kind, extra));
+      return;
+    }
     const id = uid();
     const spot = freeSpot(kind);
     const now = Date.now();
@@ -1007,7 +1193,11 @@
   }
 
   function startReply(id) {
-    if (!meMember()) { openRoster(() => startReply(id)); return; }
+    if (!meMember()) {
+      if (store.account) { toast("Still opening the fridge — try again in a second."); return; }
+      openRoster(() => startReply(id));
+      return;
+    }
     state.replying = id;
     state.expanded.add(id);
     repaint(id);
@@ -1020,16 +1210,17 @@
     const note = state.notes.get(id);
     const me = meMember();
     if (!note || !me) return;
-    const replies = repliesOf(note).map((r) => ({ ...r }));
-    replies.push({
+    const reply = {
       id: uid(), by: state.me, byName: me.name, byColor: me.color,
       text: text.slice(0, 400), at: Date.now(),
-    });
-    if (replies.length > 60) replies.splice(0, replies.length - 60);
+    };
+    /* Drawn at once, then persisted. A reply is a conversation about the
+       note, not an edit of it, so it leaves the note's own last-updated
+       tag alone. */
+    note.replies = [...repliesOf(note), reply].slice(-60);
     state.replying = id;
-    /* A reply is a conversation about the note, not an edit of it, so
-       it leaves the note's own last-updated tag alone. */
-    patch(id, { replies }, { touch: false });
+    store.addReply(id, reply);
+    repaint(id);
     const el = els.get(id);
     const input = el && el.querySelector(".reply-input");
     if (input) input.focus();
@@ -1038,7 +1229,9 @@
   function removeReply(id, replyId) {
     const note = state.notes.get(id);
     if (!note) return;
-    patch(id, { replies: repliesOf(note).filter((r) => r.id !== replyId) }, { touch: false });
+    note.replies = repliesOf(note).filter((r) => r.id !== replyId);
+    store.delReply(id, replyId);
+    repaint(id);
   }
 
   /* ---------------- the calendar sheet ---------------- */
@@ -1438,6 +1631,189 @@
     if (then) then();
   }
 
+  /* ---------------- your family (accounts mode) ---------------- */
+
+  /* Stands in for the name picker once there are real accounts: who is
+     in this family group, who has been invited, and which group's door
+     you are looking at. */
+  function openFamily() {
+    closeEditor(true);
+    const back = h("div", { class: "sheet-back", role: "dialog", "aria-modal": "true", "aria-label": "Your family" });
+    back.dataset.family = "1";
+    back.addEventListener("pointerdown", (e) => { if (e.target === back) back.remove(); });
+    const sheet = h("div", { class: "sheet" });
+    back.append(sheet);
+    document.body.append(back);
+    paintFamily(sheet);
+  }
+
+  const closeFamily = () => {
+    const back = document.querySelector(".sheet-back[data-family]");
+    if (back) back.remove();
+  };
+
+  async function paintFamily(sheet) {
+    const home = state.household;
+    const iOwn = home && home.role === "owner";
+
+    sheet.textContent = "";
+    sheet.append(h("div", { class: "sheet-head" },
+      h("h2", { text: "Your family" }),
+      h("button", { class: "x-close", type: "button", "aria-label": "Close", onclick: closeFamily, text: "✕" })));
+
+    sheet.append(h("p", {}, "You are signed in as ",
+      h("strong", { text: (state.account && state.account.displayName) || "someone" }),
+      state.account && state.account.email ? ` (${state.account.email})` : "",
+      ". Only people you invite can open this door."));
+
+    /* --- who is here --- */
+    const list = h("div", { class: "roster" });
+    sheet.append(h("div", { class: "field-row" }, h("label", { text: (home && home.name) || "This group" }), list));
+    list.append(h("p", { class: "cal-none", text: "Loading the family…" }));
+
+    /* --- invite someone --- */
+    const inviteNote = h("p", { class: "hint", style: "margin-top:6px" });
+    const inviteForm = h("form", { class: "new-person", onsubmit: (e) => { e.preventDefault(); sendInvite(sheet, inviteNote); } },
+      h("input", { id: "invite-email", type: "email", placeholder: "their@email.com", "aria-label": "Email address to invite", autocomplete: "off", required: true }),
+      h("button", { class: "btn", type: "submit", text: "Invite" }));
+
+    sheet.append(h("div", { class: "field-row" },
+      h("label", { for: "invite-email", text: "Invite someone by email" }),
+      inviteForm,
+      h("label", { class: "check" },
+        h("input", { type: "checkbox", id: "invite-any" }),
+        h("span", { text: "Any address may use this link — needed if they sign in with Apple and hide their email" })),
+      inviteNote));
+
+    const pending = h("div", { class: "roster" });
+    sheet.append(h("div", { class: "field-row", id: "pending-wrap" }, h("label", { text: "Invitations waiting" }), pending));
+
+    /* --- other groups --- */
+    if (state.households.length > 1) {
+      const others = h("div", { class: "roster" });
+      for (const hh of state.households) {
+        others.append(h("div", { class: "roster-row" },
+          h("button", {
+            class: "pick", type: "button", "aria-pressed": home && hh.id === home.id ? "true" : "false",
+            onclick: () => switchHousehold(hh.id),
+          },
+            h("span", { class: "dot", style: `--c:${hh.color}`, "aria-hidden": "true", text: hh.name.slice(0, 1).toUpperCase() }),
+            h("span", { text: hh.name }),
+            home && hh.id === home.id ? h("span", { class: "tag", text: "open" }) : null)));
+      }
+      sheet.append(h("div", { class: "field-row" }, h("label", { text: "Your other family groups" }), others));
+    }
+
+    sheet.append(h("div", { class: "editor-foot" },
+      h("button", { class: "btn ghost", type: "button", onclick: () => { window.location.href = "/start"; }, text: "Start another group" }),
+      h("button", { class: "btn ghost", type: "button", onclick: signOut, text: "Sign out" })));
+
+    await Promise.all([paintMembers(list, iOwn), paintInvitations(pending)]);
+  }
+
+  async function paintMembers(list, iOwn) {
+    const home = state.household;
+    if (!home) return;
+    let members = [];
+    try {
+      const response = await fetch(`/api/households/${home.id}/members`, { credentials: "same-origin" });
+      if (response.ok) members = (await response.json()).members || [];
+    } catch { /* offline; the list just stays empty */ }
+
+    list.textContent = "";
+    if (!members.length) {
+      list.append(h("p", { class: "cal-none", text: "Could not load the family just now." }));
+      return;
+    }
+    for (const m of members) {
+      list.append(h("div", { class: "roster-row" },
+        h("div", { class: "pick", style: "cursor:default" },
+          h("span", { class: "dot", style: `--c:${m.color}`, "aria-hidden": "true", text: m.name.slice(0, 1).toUpperCase() }),
+          h("span", { text: m.name }),
+          h("span", { class: "tag", text: m.isMe ? "you" : m.role === "owner" ? "owner" : "" })),
+        iOwn && !m.isMe
+          ? h("button", {
+              class: "rm", type: "button", "aria-label": `Remove ${m.name} from this group`, title: `Remove ${m.name}`,
+              onclick: () => removeMember(m),
+            }, "✕")
+          : null));
+    }
+  }
+
+  async function paintInvitations(box) {
+    const home = state.household;
+    box.textContent = "";
+    if (!home) return;
+    let invitations = [];
+    try {
+      const response = await fetch(`/api/households/${home.id}/invitations`, { credentials: "same-origin" });
+      if (response.ok) invitations = (await response.json()).invitations || [];
+    } catch { /* offline */ }
+
+    const waiting = invitations.filter((i) => i.status === "pending");
+    const wrap = document.getElementById("pending-wrap");
+    if (wrap) wrap.hidden = waiting.length === 0;
+    if (!waiting.length) return;
+
+    for (const inv of waiting) {
+      box.append(h("div", { class: "roster-row" },
+        h("div", { class: "pick", style: "cursor:default" },
+          h("span", { class: "dot", style: "--c:#9aa2ad", "aria-hidden": "true", text: "✉" }),
+          h("span", {}, inv.email,
+            h("span", { class: "sub", text: inv.anyEmail ? "any address may use the link" : "this address only" })),
+          h("span", { class: "tag", text: "waiting" })),
+        h("button", {
+          class: "rm", type: "button", "aria-label": `Withdraw the invitation to ${inv.email}`, title: "Withdraw",
+          onclick: async () => {
+            if (!await store.request("DELETE", `/api/invitations/${inv.id}`)) return;
+            toast(`Invitation to ${inv.email} withdrawn.`);
+            paintInvitations(box);
+          },
+        }, "✕")));
+    }
+  }
+
+  async function sendInvite(sheet, noteEl) {
+    const input = sheet.querySelector("#invite-email");
+    const anyEmail = sheet.querySelector("#invite-any").checked;
+    const email = input.value.trim();
+    if (!email || !state.household) return;
+
+    noteEl.textContent = "Sending…";
+    const result = await store.request("POST", `/api/households/${state.household.id}/invitations`, { email, anyEmail });
+    if (!result) { noteEl.textContent = ""; return; }
+
+    input.value = "";
+    noteEl.textContent = result.message || `Invitation sent to ${email}.`;
+    /* In development nothing is emailed, so the link has to be
+       reachable from the screen. */
+    if (result.link) {
+      noteEl.append(h("br"), h("a", { href: result.link, class: "raw-link", text: result.link }));
+    }
+    const pending = document.querySelector("#pending-wrap .roster");
+    if (pending) paintInvitations(pending);
+  }
+
+  async function removeMember(member) {
+    if (!window.confirm(`Remove ${member.name} from this group? Their notes stay on the door.`)) return;
+    const home = state.household;
+    if (!await store.request("DELETE", `/api/households/${home.id}/members/${member.id}`)) return;
+    toast(`${member.name} was removed.`);
+    const sheet = document.querySelector(".sheet-back[data-family] .sheet");
+    if (sheet) paintFamily(sheet);
+    store.refresh();
+  }
+
+  async function switchHousehold(id) {
+    if (!await store.request("POST", `/api/households/${id}/select`)) return;
+    window.location.reload();
+  }
+
+  async function signOut() {
+    await store.request("POST", "/api/auth/signout");
+    window.location.href = "/signin";
+  }
+
   /* ---------------- wiring ---------------- */
 
   function applyNotes(obj) {
@@ -1455,10 +1831,13 @@
 
   function applyRoster(obj) {
     state.roster = new Map(Object.entries(obj || {}));
-    if (state.me && !state.roster.has(state.me)) {
+    /* With accounts, who you are is settled by the session, not by a
+       pick that can go stale. */
+    if (!store.account && state.me && !state.roster.has(state.me)) {
       state.me = null;
       localStorage.removeItem("family-fridge/me");
     }
+    if (store.account) paintStatus();
     paintMe();
     const sheet = document.querySelector(".sheet-back[data-roster] .sheet");
     if (sheet) paintRoster(sheet);
@@ -1466,6 +1845,7 @@
 
   function applyMeta(obj) {
     state.meta = { name: "The Family Fridge", ...(obj || {}) };
+    if (store.account && state.household) state.household.name = state.meta.name;
     const input = $("#household-name");
     if (document.activeElement !== input) input.value = state.meta.name;
     fitName();
@@ -1506,19 +1886,32 @@
     input.style.width = Math.max(90, Math.ceil(rule.getBoundingClientRect().width) + 12) + "px";
   }
 
-  function start() {
+  async function start() {
     buildTray();
     fitName();
-    paintMe();
-    paintStatus();
+    const accounts = window.FRIDGE_MODE === "api";
 
-    // The local door renders at once, so the page is never an empty shell.
-    const ex = exampleFridge();
-    store.seed(ex.notes, ex.roster, ex.meta);
-    subscribe();
-    ensureCalendar();
+    if (accounts) {
+      store = apiStore();
+      paintMe();
+      paintStatus();
+      subscribe();
+      const ready = await store.open();
+      if (!ready) return;                  // already redirecting to /signin or /start
+      paintMe();
+      paintStatus();
+      ensureCalendar();
+    } else {
+      paintMe();
+      paintStatus();
+      // The local door renders at once, so the page is never an empty shell.
+      const ex = exampleFridge();
+      store.seed(ex.notes, ex.roster, ex.meta);
+      subscribe();
+      ensureCalendar();
+    }
 
-    $("#whoami").addEventListener("click", () => openRoster());
+    $("#whoami").addEventListener("click", () => (accounts ? openFamily() : openRoster()));
 
     const nameInput = $("#household-name");
     const saveName = () => {
@@ -1527,6 +1920,10 @@
       fitName();
       if (v !== state.meta.name) { state.meta.name = v; store.patchMeta({ name: v }); }
     };
+    if (accounts && state.household && state.household.role !== "owner") {
+      nameInput.readOnly = true;
+      nameInput.title = "Only the person who started this group can rename it.";
+    }
     nameInput.addEventListener("input", fitName);
     nameInput.addEventListener("change", saveName);
     nameInput.addEventListener("blur", saveName);
@@ -1536,6 +1933,7 @@
       if (e.key !== "Escape") return;
       const cal = document.querySelector('.sheet-back[aria-label="Add to calendar"]');
       if (cal) { cal.remove(); return; }
+      if (document.querySelector(".sheet-back[data-family]")) { closeFamily(); return; }
       if (document.querySelector(".sheet-back[data-roster]")) { closeRoster(); return; }
       if (state.editing) { closeEditor(true); return; }
       if (state.replying) { const was = state.replying; state.replying = null; repaint(was); }
@@ -1561,8 +1959,8 @@
 
     setInterval(stampsNow, 60000);
 
-    /* Shared storage, if this view can have it. */
-    if (window.claude && typeof window.claude.use === "function") {
+    /* Shared storage, if this view can have it and has no server. */
+    if (!accounts && window.claude && typeof window.claude.use === "function") {
       window.claude.use("db").then((db) => {
         if (!db) return;
         store = dbStore(db);
@@ -1575,6 +1973,9 @@
         setTimeout(ensureCalendar, 1200);   // only if the shared door really is bare
       }).catch(() => {});
 
+    }
+
+    if (!accounts && window.claude && typeof window.claude.use === "function") {
       window.claude.use("room").then((r) => {
         if (!r) return;
         room = r;
@@ -1590,7 +1991,7 @@
   }
   const boot = (carried) => {
     if (carried && carried.cal) state.cal = carried.cal;
-    start();
+    start().catch((e) => console.error("fridge boot:", e));
   };
   if (hot && typeof hot.ready === "function") hot.ready(boot);
   else boot((hot && hot.data) || {});

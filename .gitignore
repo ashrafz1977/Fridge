@@ -1,0 +1,10 @@
+node_modules/
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+
+# Apple's signing key. If one of these ever lands in the repository,
+# revoke it in the Apple Developer portal rather than just deleting it.
+*.p8

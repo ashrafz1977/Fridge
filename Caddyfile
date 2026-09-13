@@ -1,0 +1,8 @@
+# Replace with your own hostname. Caddy obtains and renews the
+# certificate by itself, which is the whole reason it is here: the app
+# insists on https in production because the session cookies are
+# marked Secure.
+fridge.example.com {
+	encode zstd gzip
+	reverse_proxy fridge:3000
+}
