@@ -523,6 +523,47 @@
     room.presence({ who: me ? me.name : "Someone", color: me ? me.color : "#9aa2ad" }).catch(() => {});
   }
 
+  /* Stands in for window.confirm, which a sandboxed frame ignores
+     outright: it returns false without ever showing a dialog, so every
+     action gated behind one silently did nothing. Resolves true/false. */
+  function ask({ title, body, confirm = "Yes", cancel = "Keep it", danger = false }) {
+    return new Promise((resolve) => {
+      let settled = false;
+      const back = h("div", { class: "sheet-back", role: "dialog", "aria-modal": "true", "aria-label": title });
+      back.dataset.ask = "1";
+
+      const finish = (answer) => {
+        if (settled) return;
+        settled = true;
+        document.removeEventListener("keydown", onKey, true);
+        back.remove();
+        resolve(answer);
+      };
+      /* Captured, so the page's own Escape handling does not also fire. */
+      const onKey = (e) => {
+        if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); finish(false); }
+        else if (e.key === "Enter") { e.stopPropagation(); e.preventDefault(); finish(true); }
+      };
+
+      back.addEventListener("pointerdown", (e) => { if (e.target === back) finish(false); });
+
+      const go = h("button", {
+        class: "btn" + (danger ? " danger" : ""), type: "button",
+        onclick: () => finish(true), text: confirm,
+      });
+      back.append(h("div", { class: "sheet mini" },
+        h("div", { class: "sheet-head" }, h("h2", { text: title })),
+        body ? h("p", { text: body }) : null,
+        h("div", { class: "ask-row" },
+          h("button", { class: "btn ghost", type: "button", onclick: () => finish(false), text: cancel }),
+          go)));
+
+      document.body.append(back);
+      document.addEventListener("keydown", onKey, true);
+      go.focus();
+    });
+  }
+
   let toastTimer = null;
   function toast(message) {
     const old = $(".toast");
@@ -841,10 +882,13 @@
         h("h2", { text: KINDS[kind].label }),
         h("button", { class: "x-close", type: "button", "aria-label": "Close", onclick: () => closeEditor(true), text: "✕" })));
     } else {
+      /* Closes rather than deletes. An X in the top right corner of an
+         open thing means "close it" everywhere else; taking the note off
+         the door is the footer's job, and the note's own X when shut. */
       host.append(h("div", { class: "n-tools" },
         h("button", {
-          type: "button", title: "Take this off the fridge", "aria-label": "Take this off the fridge",
-          onclick: (e) => { e.stopPropagation(); removeNote(id); }, text: "✕",
+          type: "button", title: "Close", "aria-label": "Close this note",
+          onclick: (e) => { e.stopPropagation(); closeEditor(true); }, text: "✕",
         })));
       host.append(h("span", { class: "n-kind", text: KINDS[kind].label }));
     }
@@ -962,11 +1006,11 @@
     }
 
     host.append(h("div", { class: "editor-foot" },
-      h("span", { class: "hint", text: isPhone() ? "Saves when you close it" : "Esc to close" }),
       h("button", {
-        class: "btn" + (isPhone() ? " wide" : ""), type: "button",
-        onclick: () => closeEditor(true), text: "Stick it up",
-      })));
+        class: "btn ghost danger", type: "button",
+        onclick: () => removeNote(id), text: "Take it off",
+      }),
+      h("button", { class: "btn", type: "button", onclick: () => closeEditor(true), text: "Stick it up" })));
   }
 
   function refreshCalLinks(host, id, note) {
@@ -1141,12 +1185,23 @@
     repaint(id);
   }
 
-  function removeNote(id, quiet) {
+  async function removeNote(id, quiet) {
     const note = state.notes.get(id);
     if (!note || note.kind === "calendar") return;
-    const label = note.title || note.body || "this note";
+    const label = String(note.title || note.body || "this note").trim();
     const written = note.body || note.title || (note.items || []).length || repliesOf(note).length;
-    if (!quiet && written && !window.confirm(`Take “${String(label).slice(0, 60)}” off the fridge?`)) return;
+    if (!quiet && written) {
+      const ok = await ask({
+        title: "Take it off the fridge?",
+        body: `“${label.slice(0, 80)}” goes for everyone, replies and all.`,
+        confirm: "Take it off",
+        cancel: "Leave it up",
+        danger: true,
+      });
+      if (!ok) return;
+      /* It may have gone already while the question was on screen. */
+      if (!state.notes.has(id)) return;
+    }
     if (state.editing === id) {
       state.editing = null;
       state.drafts.delete(id);
@@ -1588,8 +1643,13 @@
         h("button", {
           class: "rm", type: "button", "aria-label": "Remove " + p.name + " from the fridge",
           title: "Remove " + p.name,
-          onclick: () => {
-            if (!window.confirm(`Remove ${p.name}? Their notes stay on the fridge.`)) return;
+          onclick: async () => {
+            const ok = await ask({
+              title: `Remove ${p.name}?`,
+              body: "Their notes stay on the fridge. They can pick their name again any time.",
+              confirm: "Remove", cancel: "Cancel", danger: true,
+            });
+            if (!ok) return;
             state.roster.delete(id);
             store.delMember(id);
             if (state.me === id) { state.me = null; localStorage.removeItem("family-fridge/me"); paintMe(); }
@@ -1795,7 +1855,13 @@
   }
 
   async function removeMember(member) {
-    if (!window.confirm(`Remove ${member.name} from this group? Their notes stay on the door.`)) return;
+    const ok = await ask({
+      title: `Remove ${member.name}?`,
+      body: `${member.name} will not be able to open this fridge again unless you invite them back. `
+        + "Their notes and replies stay on the door.",
+      confirm: "Remove", cancel: "Cancel", danger: true,
+    });
+    if (!ok) return;
     const home = state.household;
     if (!await store.request("DELETE", `/api/households/${home.id}/members/${member.id}`)) return;
     toast(`${member.name} was removed.`);
