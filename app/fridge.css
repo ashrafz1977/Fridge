@@ -1,0 +1,959 @@
+/* ============================================================
+   The Family Fridge — a shared refrigerator door
+   Palette, type and layout tokens. Paper keeps its own colour in
+   both themes (paper is paper); the door and the chrome change.
+   ============================================================ */
+
+:root {
+  /* Door — brushed stainless, cool grey biased toward the steel blue */
+  --door-top:      #d9dde3;
+  --door-bottom:   #bdc3cb;
+  --door-grain:    rgba(255, 255, 255, 0.26);
+  --door-grain-2:  rgba(96, 106, 120, 0.045);
+  --door-edge:     rgba(72, 82, 96, 0.22);
+  --seal:          #9aa2ad;
+
+  /* Chrome — the handle and the trim */
+  --chrome-hi:     #f4f6f8;
+  --chrome-mid:    #c3cad3;
+  --chrome-lo:     #8e97a3;
+
+  /* Chrome type (reads on the door, not on paper) */
+  --chrome-ink:    #2c333d;
+  --chrome-ink-2:  #5d6875;
+  --chrome-plate:  #f7f8fa;
+  --chrome-plate-edge: rgba(52, 62, 76, 0.18);
+
+  /* The one bold colour: magnet red */
+  --magnet:        #c0392f;
+  --magnet-deep:   #8e241c;
+
+  /* Semantic, separate from the accent */
+  --ok:            #2f7d55;
+  --due:           #b4571a;
+
+  /* Paper — theme-invariant */
+  --p-canary:  #fdf0a4;
+  --p-rose:    #ffc2d4;
+  --p-mint:    #bff0d7;
+  --p-sky:     #b8dcf8;
+  --p-peach:   #ffd4a9;
+  --p-lilac:   #dcccf6;
+  --p-card:    #fdfbf4;
+  --p-white:   #ffffff;
+  --ink:       #37332c;
+  --ink-soft:  #6d665b;
+  --ink-faint: #9a9285;
+  --rule:      rgba(84, 122, 168, 0.28);
+  --rule-red:  rgba(196, 74, 62, 0.5);
+
+  /* Fasteners */
+  --tape:      rgba(252, 250, 236, 0.62);
+  --tape-edge: rgba(190, 182, 150, 0.45);
+  --clip:      #6f7885;
+
+  /* Shadow on the door */
+  --lift-1: 0 1px 2px rgba(30, 36, 45, 0.16), 0 3px 8px rgba(30, 36, 45, 0.14);
+  --lift-2: 0 2px 4px rgba(30, 36, 45, 0.2), 0 12px 26px rgba(30, 36, 45, 0.26);
+
+  /* Type */
+  --hand:  "Caveat", "Bradley Hand", "Segoe Print", cursive;
+  --ui:    "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --print: "Oswald", "Archivo Narrow", "Helvetica Neue", sans-serif;
+
+  color-scheme: light;
+}
+
+/* System dark — guarded so an explicit light choice still wins */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --door-top:     #3c424a;
+    --door-bottom:  #262b31;
+    --door-grain:   rgba(255, 255, 255, 0.045);
+    --door-grain-2: rgba(0, 0, 0, 0.13);
+    --door-edge:    rgba(0, 0, 0, 0.5);
+    --seal:         #1b1f24;
+    --chrome-hi:    #7e8894;
+    --chrome-mid:   #4d5560;
+    --chrome-lo:    #2b3037;
+    --chrome-ink:   #eef1f5;
+    --chrome-ink-2: #a9b3c0;
+    --chrome-plate: #2e343c;
+    --chrome-plate-edge: rgba(0, 0, 0, 0.45);
+    --magnet:       #d6483c;
+    --lift-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 3px 10px rgba(0, 0, 0, 0.4);
+    --lift-2: 0 2px 5px rgba(0, 0, 0, 0.45), 0 14px 30px rgba(0, 0, 0, 0.55);
+    color-scheme: dark;
+  }
+}
+
+/* Explicit dark choice wins over a light OS */
+:root[data-theme="dark"] {
+  --door-top:     #3c424a;
+  --door-bottom:  #262b31;
+  --door-grain:   rgba(255, 255, 255, 0.07);
+  --door-grain-2: rgba(0, 0, 0, 0.2);
+  --door-edge:    rgba(0, 0, 0, 0.5);
+  --seal:         #1b1f24;
+  --chrome-hi:    #7e8894;
+  --chrome-mid:   #4d5560;
+  --chrome-lo:    #2b3037;
+  --chrome-ink:   #eef1f5;
+  --chrome-ink-2: #a9b3c0;
+  --chrome-plate: #2e343c;
+  --chrome-plate-edge: rgba(0, 0, 0, 0.45);
+  --magnet:       #d6483c;
+  --lift-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 3px 10px rgba(0, 0, 0, 0.4);
+  --lift-2: 0 2px 5px rgba(0, 0, 0, 0.45), 0 14px 30px rgba(0, 0, 0, 0.55);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--ui);
+  color: var(--chrome-ink);
+  background:
+    repeating-linear-gradient(90deg,
+      var(--door-grain) 0 1px,
+      transparent 1px 3px,
+      var(--door-grain-2) 3px 4px,
+      transparent 4px 7px),
+    linear-gradient(168deg, var(--door-top) 0%, var(--door-bottom) 100%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The seal and the handle: the door's left edge */
+.door-edge {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 46px;
+  pointer-events: none;
+  z-index: 200;
+  background: linear-gradient(90deg, var(--seal) 0 6px, var(--door-edge) 6px 9px, transparent 9px);
+}
+.door-edge::after {                     /* the handle */
+  content: "";
+  position: absolute;
+  left: 17px;
+  top: 14%;
+  bottom: 14%;
+  width: 18px;
+  border-radius: 9px;
+  background: linear-gradient(90deg, var(--chrome-lo) 0%, var(--chrome-hi) 34%, var(--chrome-mid) 62%, var(--chrome-lo) 100%);
+  box-shadow: var(--lift-2);
+}
+
+/* ---------- Chrome: the magnetic name plate and the tray ---------- */
+
+.shell {
+  position: relative;
+  min-height: 100vh;
+  padding: 20px 20px 116px 66px;
+}
+
+.plate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 10px 18px;
+  border-radius: 3px;
+  background: var(--chrome-plate);
+  border: 1px solid var(--chrome-plate-edge);
+  box-shadow: var(--lift-1);
+  position: relative;
+  z-index: 1200;
+}
+.plate::before,
+.plate::after {                          /* two little magnets holding the plate */
+  content: "";
+  position: absolute;
+  top: -5px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #fff 0 12%, var(--magnet) 13% 66%, var(--magnet-deep) 100%);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.plate::before { left: 14px; }
+.plate::after  { right: 14px; }
+
+.household {
+  font-family: var(--print);
+  font-weight: 600;
+  font-size: clamp(1.15rem, 3.4vw, 1.6rem);
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+  color: var(--chrome-ink);
+  background: none;
+  border: 0;
+  border-bottom: 1.5px dashed transparent;
+  padding: 0 2px;
+  width: 15ch;
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+.household:hover   { border-bottom-color: var(--chrome-ink-2); }
+.household:focus   { outline: none; border-bottom-color: var(--magnet); }
+
+.plate-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.label {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--chrome-ink-2);
+}
+
+/* Who's at the fridge */
+.me {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--chrome-plate-edge);
+  background: transparent;
+  color: var(--chrome-ink);
+  font-family: var(--ui);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 4px 10px 4px 5px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.me:hover { border-color: var(--magnet); }
+.dot {
+  width: 17px; height: 17px;
+  border-radius: 50%;
+  flex: none;
+  background: radial-gradient(circle at 34% 30%, rgba(255,255,255,0.85) 0 14%, var(--c, var(--magnet)) 15% 68%, rgba(0,0,0,0.34) 100%);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.35);
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.95);
+  letter-spacing: 0;
+}
+
+.here { display: flex; align-items: center; gap: 5px; }
+.here .dot { width: 21px; height: 21px; font-size: 0.62rem; }
+.here .dot.is-me { box-shadow: 0 0 0 2px var(--chrome-plate), 0 0 0 3.5px var(--magnet); }
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--chrome-ink-2);
+}
+.status::before {
+  content: "";
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+}
+.status[data-live="1"]::before { background: var(--ok); }
+
+/* ---------- The magnet tray ---------- */
+
+.tray {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 1300;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 9px 12px;
+  max-width: calc(100vw - 32px);
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--chrome-plate) 88%, transparent);
+  border: 1px solid var(--chrome-plate-edge);
+  box-shadow: var(--lift-2);
+  backdrop-filter: blur(7px);
+}
+.tray::-webkit-scrollbar { display: none; }
+
+.magnet {
+  flex: none;
+  width: 66px;
+  border: 0;
+  background: none;
+  padding: 2px 0 0;
+  cursor: pointer;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  border-radius: 9px;
+  color: var(--chrome-ink-2);
+  font-family: var(--ui);
+  font-size: 0.575rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.magnet-disc {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.95rem;
+  line-height: 1;
+  background:
+    radial-gradient(circle at 32% 26%, rgba(255,255,255,0.9) 0 10%, transparent 42%),
+    linear-gradient(160deg, var(--mc) 0%, color-mix(in srgb, var(--mc) 62%, #000) 100%);
+  box-shadow: inset 0 -1px 2px rgba(0,0,0,0.28), 0 2px 4px rgba(0,0,0,0.3);
+  transition: transform 0.14s ease;
+}
+.magnet:hover  { color: var(--chrome-ink); }
+.magnet:hover  .magnet-disc { transform: translateY(-3px) scale(1.07); }
+.magnet:active .magnet-disc { transform: translateY(0) scale(0.95); }
+.magnet:focus-visible { outline: 2px solid var(--magnet); outline-offset: 2px; }
+
+/* ---------- The door surface where notes live ---------- */
+
+.door {
+  position: relative;
+  margin-top: 16px;
+  min-height: calc(100vh - 210px);
+}
+
+/* ---------- A note ---------- */
+
+.note {
+  position: absolute;
+  width: 212px;
+  color: var(--ink);
+  background: var(--paper, var(--p-canary));
+  box-shadow: var(--lift-1);
+  transform: rotate(var(--tilt, 0deg));
+  transition: box-shadow 0.16s ease, transform 0.16s ease;
+  touch-action: none;
+  cursor: grab;
+  padding: 20px 15px 13px;
+}
+.note:focus-visible { outline: 2px solid var(--magnet); outline-offset: 3px; }
+.note:hover  { box-shadow: var(--lift-2); }
+.note.dragging { cursor: grabbing; box-shadow: var(--lift-2); transform: rotate(var(--tilt, 0deg)) scale(1.035); transition: none; }
+.note.editing {
+  transform: rotate(0deg) scale(1.02);
+  box-shadow: var(--lift-2), 0 0 0 2px var(--magnet);
+  cursor: default;
+  z-index: 1000 !important;
+}
+.note.done { filter: saturate(0.55); }
+
+/* Fasteners */
+.note[data-fast="magnet"]::before {
+  content: "";
+  position: absolute;
+  top: -8px; left: 50%;
+  margin-left: -9px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 33% 28%, rgba(255,255,255,0.92) 0 13%, transparent 46%),
+    linear-gradient(160deg, var(--c, var(--magnet)) 0%, color-mix(in srgb, var(--c, var(--magnet)) 55%, #000) 100%);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.34);
+}
+.note[data-fast="tape"]::before,
+.note[data-fast="tape"]::after {
+  content: "";
+  position: absolute;
+  top: -9px;
+  width: 52px; height: 21px;
+  background: var(--tape);
+  border-left: 1px solid var(--tape-edge);
+  border-right: 1px solid var(--tape-edge);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.14);
+}
+.note[data-fast="tape"]::before { left: -13px;  transform: rotate(-42deg); }
+.note[data-fast="tape"]::after  { right: -13px; transform: rotate(42deg); }
+.note[data-fast="clip"]::before {
+  content: "";
+  position: absolute;
+  top: -11px; left: 50%;
+  margin-left: -19px;
+  width: 38px; height: 17px;
+  border-radius: 3px 3px 1px 1px;
+  background: linear-gradient(180deg, var(--chrome-hi) 0 38%, var(--clip) 39%, var(--chrome-lo) 100%);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* Note internals */
+.n-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.n-kind {
+  font-family: var(--ui);
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.n-body {
+  font-family: var(--hand);
+  font-size: 1.32rem;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  margin: 0;
+}
+.n-body:empty::before { content: "Write something…"; color: var(--ink-faint); }
+.n-sign {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 9px;
+  font-family: var(--ui);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+}
+.n-sign .who { font-family: var(--hand); font-size: 0.95rem; letter-spacing: 0; font-weight: 700; }
+
+.n-tools {
+  position: absolute;
+  top: 3px; right: 4px;
+  display: flex;
+  gap: 1px;
+  opacity: 0;
+  transition: opacity 0.13s ease;
+}
+.note:hover .n-tools, .note.editing .n-tools, .n-tools:focus-within { opacity: 1; }
+.n-tools button {
+  width: 21px; height: 21px;
+  border: 0;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.5);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font: 700 0.7rem/1 var(--ui);
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.n-tools button:hover { background: rgba(255,255,255,0.95); color: var(--magnet); }
+.n-tools button:focus-visible { outline: 2px solid var(--magnet); outline-offset: 1px; }
+
+/* ---------- Kinds ---------- */
+
+/* Reminder: notepad slip with a red flag down the left */
+.note[data-kind="reminder"] {
+  --paper: var(--p-white);
+  padding-left: 22px;
+  border-radius: 1px;
+}
+.note[data-kind="reminder"] .flag {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 7px;
+  background: var(--magnet);
+}
+.note[data-kind="reminder"].done .flag { background: var(--ok); }
+.r-line { display: flex; align-items: flex-start; gap: 9px; }
+.tick {
+  flex: none;
+  margin-top: 3px;
+  width: 19px; height: 19px;
+  border: 2px solid var(--ink-faint);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--ok);
+  font: 700 0.85rem/1 var(--ui);
+}
+.tick:hover { border-color: var(--ok); }
+.tick:focus-visible { outline: 2px solid var(--magnet); outline-offset: 2px; }
+.tick[aria-checked="true"] { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.done .n-body { text-decoration: line-through; text-decoration-thickness: 1.5px; color: var(--ink-soft); }
+
+.when {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--ui);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+.when.soon { color: var(--due); }
+.when.late { color: var(--magnet); }
+
+/* Appointment: index card, red header rule over blue lines */
+.note[data-kind="event"] {
+  --paper: var(--p-card);
+  padding-top: 20px;
+  background:
+    linear-gradient(var(--rule-red) 0 1.5px, transparent 1.5px) 0 44px / 100% 100% no-repeat,
+    repeating-linear-gradient(transparent 0 21px, var(--rule) 21px 22px) 0 47px / 100% 100%,
+    var(--p-card);
+  border-radius: 2px;
+}
+.e-date {
+  font-family: var(--print);
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--magnet);
+  margin: 0 0 7px;
+}
+.note[data-kind="event"] .n-body { font-size: 1.24rem; line-height: 22px; }
+
+/* Announcement: a printed notice, taped up */
+.note[data-kind="announce"] {
+  --paper: var(--p-white);
+  width: 250px;
+  padding: 26px 19px 15px;
+  border-radius: 1px;
+}
+.note[data-kind="announce"] .n-body {
+  font-family: var(--print);
+  font-weight: 600;
+  font-size: 1.12rem;
+  line-height: 1.22;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+.note[data-kind="announce"] .n-kind {
+  display: block;
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+  letter-spacing: 0.24em;
+}
+
+/* List: lined notepad with a torn top edge */
+.note[data-kind="list"] {
+  --paper: var(--p-white);
+  padding-top: 26px;
+  background:
+    repeating-linear-gradient(transparent 0 25px, var(--rule) 25px 26px) 0 40px / 100% 100%,
+    var(--p-white);
+  border-radius: 2px 2px 5px 5px;
+}
+.note[data-kind="list"]::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 7px;
+  background: repeating-linear-gradient(90deg,
+    color-mix(in srgb, var(--p-white) 100%, transparent) 0 5px,
+    color-mix(in srgb, var(--ink-faint) 26%, transparent) 5px 6px);
+}
+.items { list-style: none; margin: 0; padding: 0; display: grid; }
+.items li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  font-family: var(--hand);
+  font-size: 1.22rem;
+  line-height: 26px;
+}
+.items li.off { color: var(--ink-faint); text-decoration: line-through; }
+.items .tick { width: 16px; height: 16px; margin: 0; font-size: 0.7rem; border-width: 1.5px; }
+.items .txt { flex: 1; overflow-wrap: anywhere; cursor: text; }
+.items .rm {
+  border: 0; background: none; color: var(--ink-faint);
+  cursor: pointer; font: 700 0.8rem/1 var(--ui); padding: 2px 3px;
+  opacity: 0; transition: opacity 0.12s ease;
+}
+.items li:hover .rm, .items .rm:focus-visible { opacity: 1; }
+.items .rm:hover { color: var(--magnet); }
+.add-item {
+  width: 100%;
+  margin-top: 5px;
+  border: 0;
+  border-bottom: 1.5px dashed var(--ink-faint);
+  background: transparent;
+  font-family: var(--hand);
+  font-size: 1.18rem;
+  color: var(--ink);
+  padding: 2px 0;
+}
+.add-item::placeholder { color: var(--ink-faint); }
+.add-item:focus { outline: none; border-bottom-color: var(--magnet); }
+
+/* Memory: a polaroid */
+.note[data-kind="memory"] {
+  --paper: var(--p-white);
+  width: 190px;
+  padding: 13px 13px 8px;
+  border-radius: 2px;
+  box-shadow: var(--lift-2);
+}
+.frame {
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  font-size: 3.6rem;
+  line-height: 1;
+  background: linear-gradient(150deg, var(--shade, var(--p-sky)) 0%, color-mix(in srgb, var(--shade, var(--p-sky)) 55%, #fff) 100%);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.07);
+  user-select: none;
+}
+.note[data-kind="memory"] .n-body {
+  text-align: center;
+  font-size: 1.2rem;
+  padding: 7px 2px 0;
+}
+
+/* ---------- The calendar sheet ---------- */
+
+.note[data-kind="calendar"] {
+  --paper: var(--p-white);
+  width: 312px;
+  padding: 22px 16px 14px;
+  border-radius: 2px;
+}
+.cal-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.cal-month {
+  font-family: var(--print);
+  font-weight: 600;
+  font-size: 1.22rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.cal-month span { color: var(--ink-faint); margin-left: 6px; }
+.cal-nav { display: flex; gap: 3px; }
+.cal-nav button {
+  width: 25px; height: 25px;
+  border: 1px solid color-mix(in srgb, var(--ink-faint) 45%, transparent);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font: 700 0.78rem/1 var(--ui);
+}
+.cal-nav button:hover { border-color: var(--magnet); color: var(--magnet); }
+
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cal-dow {
+  text-align: center;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding-bottom: 3px;
+}
+.cal-day {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  font: 600 0.78rem/1 var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.cal-day.pad { color: var(--ink-faint); opacity: 0.45; }
+.cal-day:hover { background: color-mix(in srgb, var(--ink-faint) 20%, transparent); }
+.cal-day.today {
+  color: var(--magnet);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1.5px var(--magnet);
+}
+.cal-day.sel { background: color-mix(in srgb, var(--magnet) 16%, transparent); box-shadow: inset 0 0 0 1.5px var(--magnet); }
+.cal-day .pips {
+  position: absolute;
+  bottom: 3px; left: 0; right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+}
+.pip { width: 4px; height: 4px; border-radius: 50%; background: var(--c, var(--magnet)); }
+
+.cal-day-list {
+  margin-top: 11px;
+  border-top: 1px solid color-mix(in srgb, var(--ink-faint) 35%, transparent);
+  padding-top: 8px;
+  display: grid;
+  gap: 5px;
+}
+.cal-day-list h4 {
+  margin: 0;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.cal-item {
+  display: flex;
+  gap: 7px;
+  align-items: baseline;
+  font-family: var(--hand);
+  font-size: 1.08rem;
+  line-height: 1.2;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: 1px 0;
+  color: var(--ink);
+  cursor: pointer;
+  width: 100%;
+}
+.cal-item:hover { color: var(--magnet); }
+.cal-item b {
+  font-family: var(--ui);
+  font-size: 0.66rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+  flex: none;
+  min-width: 3.6em;
+}
+.cal-none { font-family: var(--ui); font-size: 0.7rem; color: var(--ink-faint); }
+.cal-add {
+  margin-top: 7px;
+  width: 100%;
+  border: 1.5px dashed color-mix(in srgb, var(--ink-faint) 55%, transparent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: 700 0.62rem/1 var(--ui);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  padding: 7px;
+  cursor: pointer;
+}
+.cal-add:hover { border-color: var(--magnet); color: var(--magnet); }
+
+/* ---------- Editing a note ---------- */
+
+.pen {
+  width: 100%;
+  border: 0;
+  background: rgba(255,255,255,0.42);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
+  border-radius: 3px;
+  color: var(--ink);
+  font-family: var(--hand);
+  font-size: 1.32rem;
+  line-height: 1.3;
+  padding: 5px 7px;
+  resize: vertical;
+  min-height: 4.2em;
+  display: block;
+}
+.note[data-kind="announce"] .pen {
+  font-family: var(--print);
+  font-weight: 600;
+  font-size: 1.06rem;
+  text-transform: uppercase;
+}
+.pen:focus { outline: 2px solid var(--magnet); outline-offset: 0; }
+
+.fields { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.fields input[type="date"],
+.fields input[type="time"] {
+  border: 0;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.16);
+  border-radius: 4px;
+  background: rgba(255,255,255,0.6);
+  color: var(--ink);
+  font: 600 0.72rem/1 var(--ui);
+  font-variant-numeric: tabular-nums;
+  padding: 6px 7px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.fields input:focus { outline: 2px solid var(--magnet); }
+
+.swatches { display: flex; gap: 4px; margin-top: 9px; flex-wrap: wrap; }
+.swatch {
+  width: 19px; height: 19px;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  background: var(--s);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18);
+}
+.swatch[aria-pressed="true"] { box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18), 0 0 0 2px var(--ink); }
+.swatch:focus-visible { outline: 2px solid var(--magnet); outline-offset: 2px; }
+
+.stickers { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 8px; }
+.stickers button {
+  width: 26px; height: 26px;
+  border: 0; border-radius: 5px;
+  background: rgba(255,255,255,0.5);
+  cursor: pointer;
+  font-size: 0.95rem;
+  padding: 0;
+}
+.stickers button:hover { background: #fff; }
+.stickers button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--magnet); }
+
+.editor-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 11px;
+}
+.hint { font: 600 0.58rem/1.3 var(--ui); letter-spacing: 0.04em; color: var(--ink-faint); }
+.btn {
+  border: 0;
+  border-radius: 5px;
+  background: var(--ink);
+  color: var(--p-white);
+  font: 700 0.65rem/1 var(--ui);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  padding: 8px 13px;
+  cursor: pointer;
+}
+.btn:hover { background: var(--magnet); }
+.btn:focus-visible { outline: 2px solid var(--magnet); outline-offset: 2px; }
+
+/* ---------- Who's at the fridge: the roster sheet ---------- */
+
+.sheet-back {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  background: rgba(16, 20, 26, 0.52);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.sheet {
+  width: min(420px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--p-card);
+  color: var(--ink);
+  border-radius: 3px;
+  box-shadow: var(--lift-2);
+  padding: 26px 24px 22px;
+  position: relative;
+}
+.sheet::before {
+  content: "";
+  position: absolute;
+  top: -10px; left: 50%; margin-left: -60px;
+  width: 120px; height: 22px;
+  background: var(--tape);
+  border-left: 1px solid var(--tape-edge);
+  border-right: 1px solid var(--tape-edge);
+  transform: rotate(-1.5deg);
+}
+.sheet h2 {
+  font-family: var(--print);
+  font-weight: 600;
+  font-size: 1.3rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0 0 4px;
+}
+.sheet p { margin: 0 0 16px; font-size: 0.8rem; line-height: 1.5; color: var(--ink-soft); max-width: 46ch; }
+.roster { display: grid; gap: 6px; margin-bottom: 16px; }
+.roster-row { display: flex; gap: 6px; align-items: center; }
+.pick {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1.5px solid color-mix(in srgb, var(--ink-faint) 40%, transparent);
+  border-radius: 7px;
+  background: transparent;
+  padding: 8px 11px;
+  cursor: pointer;
+  font: 600 0.9rem/1 var(--ui);
+  color: var(--ink);
+  text-align: left;
+}
+.pick:hover { border-color: var(--magnet); }
+.pick[aria-pressed="true"] { border-color: var(--ink); background: rgba(0,0,0,0.04); }
+.pick .tag { margin-left: auto; font: 700 0.55rem/1 var(--ui); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
+.roster-row .rm { border: 0; background: none; color: var(--ink-faint); cursor: pointer; font: 700 0.9rem/1 var(--ui); padding: 6px; }
+.roster-row .rm:hover { color: var(--magnet); }
+
+.new-person { display: flex; gap: 6px; flex-wrap: wrap; }
+.new-person input {
+  flex: 1 1 9ch;
+  min-width: 0;
+  border: 0;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink-faint) 45%, transparent);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  font: 600 0.9rem/1 var(--ui);
+  padding: 9px 11px;
+}
+.new-person input:focus { outline: 2px solid var(--magnet); }
+
+/* ---------- Phone: the door becomes a column ---------- */
+
+@media (max-width: 760px) {
+  .door-edge { display: none; }
+  .shell { padding: 16px 16px 108px; }
+  .door {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 26px;
+    margin-top: 22px;
+    min-height: 0;
+  }
+  .note {
+    position: static !important;
+    width: min(100%, 320px) !important;
+    cursor: default;
+    z-index: auto !important;
+    transform: rotate(calc(var(--tilt, 0deg) * 0.4));
+  }
+  .note.editing { transform: none; }
+  .note[data-kind="calendar"] { order: -1; }
+  .note[data-kind="memory"]  { width: min(100%, 250px) !important; }
+  .tray { left: 16px; right: 16px; transform: none; max-width: none; justify-content: flex-start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}

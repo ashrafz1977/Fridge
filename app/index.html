@@ -1,0 +1,28 @@
+<title>The Family Fridge</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Archivo:wght@400;500;600;700&family=Oswald:wght@500;600&display=swap">
+<link rel="stylesheet" href="fridge.css">
+
+<div class="door-edge" aria-hidden="true"></div>
+
+<div class="shell">
+  <header class="plate">
+    <label class="label" for="household-name">Household</label>
+    <input class="household" id="household-name" value="The Family Fridge" maxlength="28"
+           aria-label="Household name" spellcheck="false">
+    <div class="plate-meta">
+      <button class="me" id="whoami" type="button" aria-haspopup="dialog">
+        <span class="dot" id="me-dot" aria-hidden="true"></span>
+        <span id="me-name">Who's at the fridge?</span>
+      </button>
+      <div class="here" id="here" aria-label="At the fridge right now"></div>
+      <p class="status" id="status" data-live="0">Checking the fridge…</p>
+    </div>
+  </header>
+
+  <main class="door" id="door" aria-label="The fridge door"></main>
+</div>
+
+<nav class="tray" id="tray" aria-label="Stick something on the fridge"></nav>
+
+<script src="fridge.js"></script>
