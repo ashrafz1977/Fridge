@@ -39,9 +39,22 @@ comment on table public.profiles is
 create table if not exists public.households (
   id         uuid primary key default gen_random_uuid(),
   name       text not null check (length(trim(name)) between 1 and 60),
+  -- Which door the family sees. Values match the [data-finish] blocks
+  -- in web/fridge.css.
+  finish     text not null default 'steel'
+             check (finish in ('steel','enamel','graphite','slate','mint','butter','coral','oak')),
   created_by uuid not null references public.profiles (id) on delete cascade,
   created_at timestamptz not null default now()
 );
+
+-- Re-runnable on a database created before finishes existed.
+alter table public.households
+  add column if not exists finish text not null default 'steel';
+do $$ begin
+  alter table public.households add constraint households_finish_check
+    check (finish in ('steel','enamel','graphite','slate','mint','butter','coral','oak'));
+exception when duplicate_object then null;
+end $$;
 
 do $$ begin
   create type public.member_role as enum ('owner', 'member');
@@ -113,11 +126,23 @@ create table if not exists public.notes (
   date         text check (date is null or date ~ '^\d{4}-\d{2}-\d{2}$'),
   time         text check (time is null or time ~ '^\d{2}:\d{2}$'),
   items        jsonb not null default '[]'::jsonb,
+  -- A photo in the storage bucket, as "<household id>/<file>". The
+  -- bytes never live in this table; only the pointer does.
+  image        text check (image is null or image ~ '^[0-9a-f-]{36}/[A-Za-z0-9_.-]{1,80}$'),
+  -- How the polaroid window is cropped: square, landscape or portrait.
+  shape        text check (shape is null or shape in ('','wide','tall')),
+  -- The colour behind a sticker, when a polaroid has no photo yet.
+  tint         text,
   author_id    uuid references public.profiles (id) on delete set null,
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now(),
   primary key (household_id, id)
 );
+
+-- Re-runnable on a database created before photos existed.
+alter table public.notes add column if not exists image text;
+alter table public.notes add column if not exists shape text;
+alter table public.notes add column if not exists tint text;
 
 create index if not exists notes_household_idx on public.notes (household_id);
 create index if not exists notes_household_updated_idx on public.notes (household_id, updated_at desc);
@@ -137,6 +162,24 @@ create table if not exists public.replies (
 
 create index if not exists replies_note_idx on public.replies (household_id, note_id, created_at);
 create index if not exists replies_household_idx on public.replies (household_id);
+
+-- ------------------------------------------------------------
+-- Photo storage
+--
+-- Private bucket. No policies are granted to the `authenticated` role:
+-- the server reads and writes it with the service role, and checks
+-- household membership itself on every request (server/src/routes/
+-- photos.js), which is the same check the note policies make. Signed
+-- URLs are avoided on purpose — they expire, and a note keeps its photo
+-- for years.
+-- ------------------------------------------------------------
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('fridge-photos', 'fridge-photos', false, 8388608, array['image/jpeg','image/png','image/webp'])
+on conflict (id) do update
+  set public = false,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
 
 -- ------------------------------------------------------------
 -- Membership tests

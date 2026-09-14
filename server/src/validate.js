@@ -23,8 +23,15 @@ export const ForgotPassword = z.object({ email: Email });
 export const NewPassword = z.object({ password: Password });
 export const UpdateMe = z.object({ displayName: DisplayName });
 
+export const Finish = z.enum(["steel", "enamel", "graphite", "slate", "mint", "butter", "coral", "oak"]);
+
 export const NewHousehold = z.object({ name: z.string().trim().min(1, "Give the group a name.").max(60) });
-export const RenameHousehold = NewHousehold;
+export const RenameHousehold = z.object({
+  name: z.string().trim().min(1, "Give the group a name.").max(60).optional(),
+  finish: Finish.optional(),
+}).refine((v) => v.name !== undefined || v.finish !== undefined, {
+  message: "Nothing to change.",
+});
 
 export const NewInvitation = z.object({
   email: Email,
@@ -54,6 +61,11 @@ const noteShape = {
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
   time: z.string().regex(/^\d{2}:\d{2}$/).nullish(),
   items: z.array(z.object({ t: z.string().max(120), done: z.boolean() })).max(200).optional(),
+  shape: z.enum(["", "wide", "tall"]).nullish(),
+  tint: z.enum(["canary", "rose", "mint", "sky", "peach", "lilac", "white", "card"]).nullish(),
+  /* A client may clear a photo but never name one: the photo route is
+     the only thing that writes an image path. */
+  image: z.null().optional(),
 };
 
 export const NewNote = z.object(noteShape);

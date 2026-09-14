@@ -58,12 +58,21 @@ householdRouter.post("/:householdId/select", requireHousehold, (req, res) => {
 householdRouter.patch("/:householdId", requireHousehold, async (req, res, next) => {
   const body = parseOr400(RenameHousehold, req.body, res);
   if (!body) return undefined;
-  if (req.household.role !== "owner") {
+
+  /* Renaming the group is the owner's call. The door is everyone's —
+     it is the fridge they all look at, and a wrong choice is one tap
+     to undo. */
+  if (body.name !== undefined && req.household.role !== "owner") {
     return res.status(403).json({ error: "not_owner", message: "Only the person who started this group can rename it." });
   }
-  const { error } = await req.supabase.from("households").update({ name: body.name }).eq("id", req.household.id);
+
+  const changes = {};
+  if (body.name !== undefined) changes.name = body.name;
+  if (body.finish !== undefined) changes.finish = body.finish;
+
+  const { error } = await req.supabase.from("households").update(changes).eq("id", req.household.id);
   if (error) return next(error);
-  return res.json({ ok: true, name: body.name });
+  return res.json({ ok: true, ...changes });
 });
 
 householdRouter.get("/:householdId/members", requireHousehold, async (req, res, next) => {

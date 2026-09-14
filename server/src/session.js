@@ -88,7 +88,7 @@ export async function requireHousehold(req, res, next) {
   }
   const { data, error } = await req.supabase
     .from("memberships")
-    .select("household_id, role, color, households(id, name)")
+    .select("household_id, role, color, households(id, name, finish)")
     .eq("household_id", wanted)
     .maybeSingle();
 
@@ -96,6 +96,12 @@ export async function requireHousehold(req, res, next) {
   if (!data) {
     return res.status(404).json({ error: "not_a_member", message: "This family group is not yours to open." });
   }
-  req.household = { id: data.household_id, name: data.households && data.households.name, role: data.role, color: data.color };
+  req.household = {
+    id: data.household_id,
+    name: data.households && data.households.name,
+    finish: (data.households && data.households.finish) || "steel",
+    role: data.role,
+    color: data.color,
+  };
   return next();
 }

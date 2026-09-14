@@ -60,7 +60,7 @@ authRouter.get("/start/:provider", async (req, res, next) => {
      own cookie, so accepting an invite and signing up with Google is
      one gesture rather than two. */
   if (req.query.invite) {
-    writeCookie(res, PENDING_INVITE, String(req.query.invite).slice(0, 200), { maxAge: 900 });
+    writeCookie(res, PENDING_INVITE, String(req.query.invite).slice(0, 200), { maxAge: 60 * 60 * 24 });
   }
 
   const { data, error } = await req.supabase.auth.signInWithOAuth({
@@ -107,7 +107,7 @@ authRouter.post("/signup", async (req, res, next) => {
   const body = parseOr400(SignUp, req.body, res);
   if (!body) return undefined;
 
-  if (body.token) writeCookie(res, PENDING_INVITE, body.token, { maxAge: 3600 });
+  if (body.token) writeCookie(res, PENDING_INVITE, body.token, { maxAge: 60 * 60 * 24 });
 
   const { data, error } = await req.supabase.auth.signUp({
     email: body.email,
@@ -186,7 +186,7 @@ meRouter.get("/", async (req, res, next) => {
     req.supabase.from("profiles").select("id, display_name, email").eq("id", req.user.id).maybeSingle(),
     req.supabase
       .from("memberships")
-      .select("role, color, joined_at, households(id, name, created_at)")
+      .select("role, color, joined_at, households(id, name, finish, created_at)")
       .order("joined_at", { ascending: true }),
   ]);
   if (profileError) return next(profileError);
@@ -194,7 +194,10 @@ meRouter.get("/", async (req, res, next) => {
 
   const households = (rows || [])
     .filter((r) => r.households)
-    .map((r) => ({ id: r.households.id, name: r.households.name, role: r.role, color: r.color }));
+    .map((r) => ({
+      id: r.households.id, name: r.households.name,
+      finish: r.households.finish || "steel", role: r.role, color: r.color,
+    }));
 
   const cookieHome = currentHouseholdId(req);
   const current = households.find((hh) => hh.id === cookieHome) || households[0] || null;

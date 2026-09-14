@@ -10,13 +10,24 @@
    ============================================================ */
 
 :root {
-  /* Door — brushed stainless, cool grey biased toward the steel blue */
+  /* Door — brushed stainless, cool grey biased toward the steel blue.
+     Overridden wholesale by [data-finish] below. */
   --door-top:      #d9dde3;
   --door-bottom:   #bdc3cb;
   --door-grain:    rgba(255, 255, 255, 0.26);
   --door-grain-2:  rgba(96, 106, 120, 0.045);
   --door-edge:     rgba(72, 82, 96, 0.22);
   --seal:          #9aa2ad;
+
+  /* Brushed metal: fine vertical grain. Each finish redefines this. */
+  --grain: repeating-linear-gradient(90deg,
+    var(--door-grain) 0 1px,
+    transparent 1px 3px,
+    var(--door-grain-2) 3px 4px,
+    transparent 4px 7px);
+
+  /* Laid over the finish at night, so one rule dims all of them. */
+  --scrim: none;
 
   /* Chrome — the handle and the trim */
   --chrome-hi:     #f4f6f8;
@@ -73,10 +84,9 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --door-top:     #3c424a;
-    --door-bottom:  #262b31;
-    --door-grain:   rgba(255, 255, 255, 0.045);
-    --door-grain-2: rgba(0, 0, 0, 0.13);
+    --scrim:        linear-gradient(rgba(7, 9, 12, 0.66), rgba(7, 9, 12, 0.72));
+    --door-grain:   rgba(255, 255, 255, 0.07);
+    --door-grain-2: rgba(0, 0, 0, 0.16);
     --door-edge:    rgba(0, 0, 0, 0.5);
     --seal:         #1b1f24;
     --chrome-hi:    #7e8894;
@@ -94,10 +104,9 @@
 }
 
 :root[data-theme="dark"] {
-  --door-top:     #3c424a;
-  --door-bottom:  #262b31;
-  --door-grain:   rgba(255, 255, 255, 0.045);
-  --door-grain-2: rgba(0, 0, 0, 0.13);
+  --scrim:        linear-gradient(rgba(7, 9, 12, 0.66), rgba(7, 9, 12, 0.72));
+  --door-grain:   rgba(255, 255, 255, 0.07);
+  --door-grain-2: rgba(0, 0, 0, 0.16);
   --door-edge:    rgba(0, 0, 0, 0.5);
   --seal:         #1b1f24;
   --chrome-hi:    #7e8894;
@@ -111,6 +120,57 @@
   --lift-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 3px 10px rgba(0, 0, 0, 0.4);
   --lift-2: 0 2px 5px rgba(0, 0, 0, 0.45), 0 14px 30px rgba(0, 0, 0, 0.55);
   color-scheme: dark;
+}
+
+/* ============================================================
+   Door finishes. A finish is two colours, a grain and a trim —
+   chosen per household, so the whole family sees the same fridge.
+   The theme's scrim sits over whichever one is picked.
+   ============================================================ */
+
+[data-finish="enamel"] {
+  --door-top: #f5f4f1; --door-bottom: #dfddd6;
+  --door-edge: rgba(120, 116, 106, 0.22); --seal: #b9b5aa;
+  --grain: none;
+}
+[data-finish="graphite"] {
+  --door-top: #5a6067; --door-bottom: #2f343a;
+  --door-grain: rgba(255, 255, 255, 0.07); --door-grain-2: rgba(0, 0, 0, 0.16);
+  --door-edge: rgba(0, 0, 0, 0.45); --seal: #20242a;
+  --chrome-hi: #9aa3ad; --chrome-mid: #5b636c; --chrome-lo: #31373d;
+}
+[data-finish="mint"] {
+  --door-top: #b4e2d6; --door-bottom: #7ec4b4;
+  --door-edge: rgba(34, 96, 84, 0.26); --seal: #5aa596;
+  --grain: none;
+}
+[data-finish="butter"] {
+  --door-top: #f8e2ad; --door-bottom: #e7c47b;
+  --door-edge: rgba(140, 104, 32, 0.24); --seal: #c9a25f;
+  --grain: none;
+  /* Brass, not chrome */
+  --chrome-hi: #f6e3b4; --chrome-mid: #cdaa5f; --chrome-lo: #8f6f2c;
+}
+[data-finish="coral"] {
+  --door-top: #f3b0a1; --door-bottom: #dc8471;
+  --door-edge: rgba(140, 60, 44, 0.26); --seal: #b96b59;
+  --grain: none;
+}
+[data-finish="slate"] {
+  --door-top: #869099; --door-bottom: #5c656f;
+  --door-edge: rgba(20, 26, 34, 0.34); --seal: #444d56;
+  --grain: none;
+}
+[data-finish="oak"] {
+  --door-top: #cba372; --door-bottom: #a87c44;
+  --door-edge: rgba(70, 44, 18, 0.34); --seal: #7a5527;
+  /* Wood runs along the door, not across it. */
+  --grain: repeating-linear-gradient(1deg,
+    rgba(94, 60, 24, 0.10) 0 2px,
+    transparent 2px 9px,
+    rgba(255, 244, 226, 0.13) 9px 10px,
+    transparent 10px 23px);
+  --chrome-hi: #f0dcb0; --chrome-mid: #c2a068; --chrome-lo: #8a6a30;
 }
 
 * { box-sizing: border-box; }
@@ -127,11 +187,8 @@ body {
   font-family: var(--ui);
   color: var(--chrome-ink);
   background:
-    repeating-linear-gradient(90deg,
-      var(--door-grain) 0 1px,
-      transparent 1px 3px,
-      var(--door-grain-2) 3px 4px,
-      transparent 4px 7px),
+    var(--scrim),
+    var(--grain),
     linear-gradient(168deg, var(--door-top) 0%, var(--door-bottom) 100%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
@@ -394,6 +451,8 @@ body {
   margin: 0;
 }
 .n-body:empty::before { content: "Tap to write…"; color: var(--ink-faint); }
+/* A photo needs no caption, so do not nag for one under a finished picture. */
+.note[data-kind="memory"] .n-body:empty::before { content: none; }
 [data-pen="printed"] .n-body,
 [data-pen="printed"] .pen { text-transform: uppercase; letter-spacing: 0.015em; }
 [data-pen="marker"] .n-body { letter-spacing: -0.01em; }
@@ -611,6 +670,42 @@ body {
 .add-item:focus { outline: none; border-bottom-color: var(--magnet); }
 
 .note[data-kind="memory"] { --paper: var(--p-white); padding: 13px 13px 8px; border-radius: 2px; box-shadow: var(--lift-2); }
+/* The white border is the polaroid's own padding; the photo fills the
+   window inside it. */
+.frame.photo { padding: 0; overflow: hidden; background: #e9e6e0; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.12); }
+.frame.photo img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.frame.wide { aspect-ratio: 4 / 3; }
+.frame.tall { aspect-ratio: 3 / 4; }
+
+/* Drag it to turn the photo, the way you would straighten one by hand. */
+.spin {
+  position: absolute;
+  right: -11px; bottom: -11px;
+  width: 30px; height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 30%, rgba(255,255,255,0.9) 0 12%, transparent 44%),
+    linear-gradient(160deg, var(--chrome-mid) 0%, var(--chrome-lo) 100%);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.35);
+  color: var(--p-white);
+  font: 700 0.86rem/1 var(--ui);
+  display: grid;
+  place-items: center;
+  cursor: grab;
+  touch-action: none;
+  padding: 0;
+}
+.spin:active { cursor: grabbing; }
+.spin:focus-visible { outline: 2px solid var(--magnet); outline-offset: 2px; }
+.note.spinning { box-shadow: var(--lift-2); transition: none; }
+
 .frame {
   aspect-ratio: 1 / 1;
   display: grid;
@@ -977,6 +1072,154 @@ body {
 }
 .stickers button:hover { background: #fff; }
 .stickers button[aria-pressed="true"] { box-shadow: 0 0 0 2.5px var(--magnet); }
+
+/* Picking a photo */
+.photo-pick {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.photo-pick label,
+.photo-pick button {
+  flex: 1 1 auto;
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1.5px dashed color-mix(in srgb, var(--ink-faint) 55%, transparent);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: 700 0.66rem/1 var(--ui);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.photo-pick label:hover,
+.photo-pick button:hover { border-color: var(--magnet); color: var(--magnet); }
+.photo-pick input[type="file"] {
+  position: absolute;
+  width: 1px; height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+.photo-pick label:focus-within { outline: 2px solid var(--magnet); outline-offset: 2px; }
+.photo-busy {
+  display: flex; align-items: center; gap: 8px;
+  font: 600 0.74rem/1.3 var(--ui);
+  color: var(--ink-soft);
+}
+
+/* Turning it */
+.turn { display: flex; align-items: center; gap: 10px; }
+.turn input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  height: var(--tap-sm);
+  accent-color: var(--magnet);
+  background: transparent;
+}
+.turn output {
+  flex: none;
+  min-width: 3.4em;
+  text-align: right;
+  font: 700 0.72rem/1 var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+.turn .level {
+  flex: none;
+  min-height: var(--tap-sm);
+  border: 0;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--ink-faint) 20%, transparent);
+  color: var(--ink-soft);
+  font: 700 0.6rem/1 var(--ui);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+.turn .level:hover { background: color-mix(in srgb, var(--magnet) 18%, transparent); color: var(--magnet); }
+
+/* ---- Choosing the door ---- */
+.door-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: var(--tap);
+  border: 1px solid var(--chrome-plate-edge);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--chrome-ink);
+  font: 600 0.78rem/1 var(--ui);
+  padding: 4px 12px 4px 5px;
+  cursor: pointer;
+}
+.door-pick:hover { border-color: var(--magnet); }
+.door-pick:focus-visible { outline: 2px solid var(--magnet); outline-offset: 2px; }
+.door-chip {
+  width: 21px; height: 21px;
+  flex: none;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25), 0 1px 2px rgba(0,0,0,0.25);
+  background: linear-gradient(160deg, var(--chip-top) 0%, var(--chip-bottom) 100%);
+}
+
+.finishes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+}
+.finish {
+  /* A button does not stretch to its grid column on its own, and a
+     swatch narrower than its label reads as a handle, not a door. */
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  display: grid;
+  gap: 6px;
+  justify-items: stretch;
+  text-align: center;
+}
+.finish .door-face {
+  position: relative;
+  height: 74px;
+  border-radius: 5px;
+  background: linear-gradient(168deg, var(--chip-top) 0%, var(--chip-bottom) 100%);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.22), 0 2px 5px rgba(0,0,0,0.22);
+  overflow: hidden;
+}
+.finish .door-face::before {       /* the grain */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--chip-grain, none);
+}
+.finish .door-face::after {        /* the handle */
+  content: "";
+  position: absolute;
+  left: 9px; top: 16%; bottom: 16%;
+  width: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--chip-lo) 0%, var(--chip-hi) 38%, var(--chip-mid) 70%, var(--chip-lo) 100%);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+.finish .nm {
+  font: 700 0.6rem/1.2 var(--ui);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.finish[aria-pressed="true"] .door-face {
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.22), 0 0 0 2.5px var(--ink);
+}
+.finish[aria-pressed="true"] .nm { color: var(--ink); }
+.finish:focus-visible .door-face { outline: 2px solid var(--magnet); outline-offset: 3px; }
 
 .editor-foot {
   display: flex;

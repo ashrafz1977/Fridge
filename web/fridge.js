@@ -51,8 +51,30 @@
     event:    { label: "Appointment",  short: "Date", glyph: "📅", tray: "#b8dcf8", fast: "clip", w: 212, pen: "neat", paper: "card" },
     announce: { label: "Announcement", short: "Notice", glyph: "📣", tray: "#ffd4a9", fast: "tape", w: 250, pen: "printed", paper: "white" },
     list:     { label: "List",         glyph: "🛒", tray: "#bff0d7", fast: "magnet", w: 212, pen: "neat",    paper: "white" },
-    memory:   { label: "Memory",       glyph: "📷", tray: "#dcccf6", fast: "tape",   w: 190, pen: "pen",     paper: "sky" },
+    memory:   { label: "Photo",        glyph: "📷", tray: "#dcccf6", fast: "tape",   w: 190, pen: "pen",     paper: "white" },
     calendar: { label: "Calendar",     glyph: "🗓", tray: "#ffffff", fast: "magnet", w: 312, pen: "typed",   paper: "white" },
+  };
+
+  /* The door finishes, one entry per [data-finish] block in fridge.css.
+     The swatch colours are repeated here so the picker can draw a little
+     door for each without loading eight stylesheets' worth of rules. */
+  const FINISHES = {
+    steel:    { name: "Brushed steel", top: "#d9dde3", bottom: "#bdc3cb", hi: "#f4f6f8", mid: "#c3cad3", lo: "#8e97a3", grain: "brushed" },
+    enamel:   { name: "White enamel",  top: "#f5f4f1", bottom: "#dfddd6", hi: "#f4f6f8", mid: "#c3cad3", lo: "#8e97a3", grain: "none" },
+    graphite: { name: "Graphite",      top: "#5a6067", bottom: "#2f343a", hi: "#9aa3ad", mid: "#5b636c", lo: "#31373d", grain: "brushed" },
+    mint:     { name: "Retro mint",    top: "#b4e2d6", bottom: "#7ec4b4", hi: "#f4f6f8", mid: "#c3cad3", lo: "#8e97a3", grain: "none" },
+    butter:   { name: "Retro butter",  top: "#f8e2ad", bottom: "#e7c47b", hi: "#f6e3b4", mid: "#cdaa5f", lo: "#8f6f2c", grain: "none" },
+    coral:    { name: "Retro coral",   top: "#f3b0a1", bottom: "#dc8471", hi: "#f4f6f8", mid: "#c3cad3", lo: "#8e97a3", grain: "none" },
+    slate:    { name: "Slate",         top: "#869099", bottom: "#5c656f", hi: "#f4f6f8", mid: "#c3cad3", lo: "#8e97a3", grain: "none" },
+    oak:      { name: "Oak panel",     top: "#cba372", bottom: "#a87c44", hi: "#f0dcb0", mid: "#c2a068", lo: "#8a6a30", grain: "wood" },
+  };
+  const FINISH_ORDER = ["steel", "enamel", "graphite", "slate", "mint", "butter", "coral", "oak"];
+  const DEFAULT_FINISH = "steel";
+
+  const CHIP_GRAIN = {
+    brushed: "repeating-linear-gradient(90deg, rgba(255,255,255,0.3) 0 1px, transparent 1px 3px, rgba(60,70,84,0.07) 3px 4px, transparent 4px 7px)",
+    wood: "repeating-linear-gradient(1deg, rgba(94,60,24,0.12) 0 2px, transparent 2px 8px, rgba(255,244,226,0.16) 8px 9px, transparent 9px 20px)",
+    none: "none",
   };
 
   const STICKERS = ["🎂", "🏆", "🎄", "🏖", "⚽", "🐶", "🎸", "🍕", "🎓", "❤️", "🎉", "🚗"];
@@ -158,6 +180,58 @@
       + `${((d.getHours() + 11) % 12) + 1}:${pad2(d.getMinutes())}${d.getHours() < 12 ? "am" : "pm"}`;
   }
 
+  /* ---------------- photos ---------------- */
+
+  /* A photo reference carries its own backend, because the same note
+     shape is used by all three: an artifact asset id, a path in the
+     server's storage bucket, or the picture itself on this device. */
+  function photoSrc(ref) {
+    const value = String(ref || "");
+    if (!value) return "";
+    if (value.startsWith("asset:")) return "/_blob/" + encodeURIComponent(value.slice(6));
+    if (value.startsWith("photo:")) return "/api/photos/" + value.slice(6).split("/").map(encodeURIComponent).join("/");
+    if (value.startsWith("data:image/")) return value;
+    return "";
+  }
+
+  /* Phone cameras produce 4000px, 6MB pictures. Nothing on a fridge door
+     needs more than a fraction of that, so it is scaled down before it
+     goes anywhere — which also keeps the localStorage build inside its
+     quota and the upload quick on a phone signal. */
+  function shrink(file, { maxEdge, quality }) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const scale = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.max(1, Math.round(img.naturalWidth * scale));
+        const h = Math.max(1, Math.round(img.naturalHeight * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("This browser cannot resize the photo.")); return; }
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toBlob(
+          (blob) => (blob ? resolve({ blob, width: w, height: h }) : reject(new Error("Could not read that photo."))),
+          "image/jpeg",
+          quality,
+        );
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("That file is not a photo we can read.")); };
+      img.src = url;
+    });
+  }
+
+  const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Could not read that photo."));
+    reader.readAsDataURL(blob);
+  });
+
   /* ---------------- state ---------------- */
 
   const state = {
@@ -174,6 +248,7 @@
     cal: { ym: TODAY.slice(0, 7), sel: TODAY },
     calOpen: localStorage.getItem("family-fridge/cal") === "1",
     peers: [],
+    finish: DEFAULT_FINISH,
     account: null,        // the signed-in person, when there are accounts
     households: [],       // every family group they belong to
     household: null,      // the one whose door this is
@@ -233,6 +308,16 @@
       setMember(id, v) { data.roster[id] = v; save("roster"); },
       delMember(id)    { delete data.roster[id]; save("roster"); },
       patchMeta(v)     { data.meta = { ...data.meta, ...v }; save("meta"); },
+      /* No server and no artifact host: the picture lives in this
+         browser, so it is kept small and stored inline. */
+      async uploadPhoto(file) {
+        const { blob } = await shrink(file, { maxEdge: 900, quality: 0.72 });
+        const dataUrl = await blobToDataUrl(blob);
+        if (dataUrl.length > 1_400_000) {
+          throw new Error("That photo is too big to keep on this device. Try a smaller one.");
+        }
+        return dataUrl;
+      },
       addReply(id, reply) {
         const note = data.notes[id];
         if (!note) return;
@@ -274,6 +359,14 @@
       setMember(id, v) { db.doc("roster/" + id).set(v).catch(shout); },
       delMember(id)    { db.doc("roster/" + id).delete().catch(shout); },
       patchMeta(v)     { db.doc("fridge/door").set({ ...state.meta, ...v }).catch(shout); },
+      async uploadPhoto(file) {
+        const assets = await claude.use("assets");
+        /* Writer-only capability: a read-only viewer gets null. */
+        if (!assets) throw new Error("You need edit access to this fridge to add a photo.");
+        const { blob } = await shrink(file, { maxEdge: 1400, quality: 0.85 });
+        const result = await assets.upload(blob, { type: "image/jpeg" });
+        return "asset:" + result.id;
+      },
       addReply(id, reply) {
         const note = state.notes.get(id);
         if (!note) return;
@@ -350,7 +443,10 @@
       const roster = {};
       for (const m of payload.members || []) roster[m.id] = { name: m.name, color: m.color, createdAt: 0 };
       subs.roster.forEach((fn) => fn(roster));
-      subs.meta.forEach((fn) => fn({ name: (payload.household && payload.household.name) || "The Family Fridge" }));
+      subs.meta.forEach((fn) => fn({
+        name: (payload.household && payload.household.name) || "The Family Fridge",
+        finish: (payload.household && payload.household.finish) || DEFAULT_FINISH,
+      }));
       subs.notes.forEach((fn) => fn(payload.notes || {}));
     }
 
@@ -375,6 +471,7 @@
         state.me = me.user.id;
         if (!me.current) { window.location.href = "/start"; return false; }
         state.household = me.current;
+        if (me.current.finish) applyFinish(me.current.finish);
         await refresh();
         poll();
         return true;
@@ -388,8 +485,30 @@
       setMember() {},
       delMember() {},
       patchMeta(v) {
-        if (!v.name || !state.household) return;
-        call("PATCH", `/api/households/${state.household.id}`, { name: v.name });
+        if (!state.household) return;
+        const changes = {};
+        if (v.name !== undefined) changes.name = v.name;
+        if (v.finish !== undefined) changes.finish = v.finish;
+        if (!Object.keys(changes).length) return;
+        call("PATCH", `/api/households/${state.household.id}`, changes);
+      },
+      async uploadPhoto(file, noteId) {
+        const { blob } = await shrink(file, { maxEdge: 1400, quality: 0.85 });
+        inFlight += 1;
+        quietUntil = Date.now() + 2500;
+        try {
+          const response = await fetch(`/api/notes/${encodeURIComponent(noteId)}/photo`, {
+            method: "PUT",
+            headers: { "content-type": "image/jpeg", "x-fridge-csrf": csrf },
+            body: blob,
+            credentials: "same-origin",
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(payload.message || "The photo did not upload.");
+          return payload.image;
+        } finally {
+          inFlight -= 1;
+        }
       },
       addReply(id, reply) { call("POST", `/api/notes/${encodeURIComponent(id)}/replies`, { body: reply.text }); },
       delReply(id, replyId) { call("DELETE", `/api/replies/${encodeURIComponent(replyId)}`); },
@@ -403,10 +522,13 @@
   /* Fields the server owns are not the browser's to send. */
   function apiNote(note) {
     const out = {};
-    for (const key of ["kind", "body", "title", "pen", "paper", "sticker", "tilt", "x", "y", "raised", "done", "date", "time", "items"]) {
+    for (const key of ["kind", "body", "title", "pen", "paper", "sticker", "tilt", "x", "y", "raised", "done", "date", "time", "items", "shape", "tint"]) {
       if (note[key] !== undefined) out[key] = note[key];
     }
     if (out.raised !== undefined) out.raised = Math.round(out.raised);
+    /* The photo route writes the image path server-side. The only thing
+       the browser is allowed to say about it is "take it off". */
+    if (note.image === null) out.image = null;
     return out;
   }
 
@@ -448,7 +570,7 @@
               createdAt: t - 3600e3, updatedAt: t - 3600e3, example: true,
               replies: [{ id: "r2", by: "ex2", byName: "Nadia", byColor: MAGNET_COLORS[1],
                           text: "Too late", at: t - 600e3 }] },
-      ex_f: { kind: "memory", body: "Beach, last August", sticker: "🏖", paper: "sky", pen: "pen",
+      ex_f: { kind: "memory", body: "Beach, last August", sticker: "🏖", paper: "white", tint: "sky", pen: "pen",
               x: 0.64, y: 0.62, raised: 8, tilt: -4, ...by("ex3"),
               createdAt: t - 604800e3, updatedAt: t - 604800e3, example: true },
       ex_g: { kind: "event", body: "Swim club pickup", date: soon(0), time: "17:00", pen: "neat",
@@ -459,6 +581,70 @@
   }
 
   /* ---------------- status chrome ---------------- */
+
+  /* The finish is a household setting, so the whole family opens the
+     same fridge. Applied to the root element, where the CSS finds it. */
+  function applyFinish(name) {
+    const finish = FINISHES[name] ? name : DEFAULT_FINISH;
+    state.finish = finish;
+    document.documentElement.dataset.finish = finish;
+    /* Cached per device purely so the next load paints the right door
+       immediately, before the household's setting has arrived. */
+    try { localStorage.setItem("family-fridge/finish", finish); } catch { /* blocked */ }
+    const chip = $("#door-chip");
+    if (chip) {
+      chip.style.setProperty("--chip-top", FINISHES[finish].top);
+      chip.style.setProperty("--chip-bottom", FINISHES[finish].bottom);
+    }
+    const label = $("#door-name");
+    if (label) label.textContent = FINISHES[finish].name;
+  }
+
+  function openDoorPicker() {
+    closeEditor(true);
+    const back = h("div", { class: "sheet-back", role: "dialog", "aria-modal": "true", "aria-label": "Change the fridge door" });
+    back.dataset.door = "1";
+    const close = () => back.remove();
+    back.addEventListener("pointerdown", (e) => { if (e.target === back) close(); });
+
+    const grid = h("div", { class: "finishes", role: "group", "aria-label": "Door finishes" });
+    const paint = () => {
+      grid.textContent = "";
+      for (const key of FINISH_ORDER) {
+        const f = FINISHES[key];
+        grid.append(h("button", {
+          class: "finish", type: "button",
+          "aria-pressed": state.finish === key ? "true" : "false",
+          "aria-label": f.name,
+          style: `--chip-top:${f.top};--chip-bottom:${f.bottom};--chip-hi:${f.hi};--chip-mid:${f.mid};--chip-lo:${f.lo}`,
+          onclick: () => {
+            applyFinish(key);
+            store.patchMeta({ finish: key });
+            paint();
+          },
+        },
+          (() => {
+            const face = h("div", { class: "door-face", "aria-hidden": "true" });
+            face.style.setProperty("--chip-grain", CHIP_GRAIN[f.grain] || "none");
+            return face;
+          })(),
+          h("span", { class: "nm", text: f.name })));
+      }
+    };
+    paint();
+
+    back.append(h("div", { class: "sheet" },
+      h("div", { class: "sheet-head" },
+        h("h2", { text: "The fridge door" }),
+        h("button", { class: "x-close", type: "button", "aria-label": "Close", onclick: close, text: "✕" })),
+      h("p", { text: "Everyone in the family sees the same door, so pick one you can all live with. Notes keep their own paper whichever you choose." }),
+      grid,
+      h("div", { class: "editor-foot" },
+        h("span", { class: "hint", text: "Changes straight away." }),
+        h("button", { class: "btn", type: "button", onclick: close, text: "Done" }))));
+
+    document.body.append(back);
+  }
 
   function paintStatus() {
     const s = $("#status");
@@ -630,6 +816,7 @@
       body: "",
       pen: KINDS[kind].pen,
       paper: kind === "sticky" ? PAPERS[Math.floor(Math.random() * PAPERS.length)] : KINDS[kind].paper,
+      ...(kind === "memory" ? { tint: PAPERS[Math.floor(Math.random() * PAPERS.length)] } : null),
       tilt: Math.round((Math.random() * 6 - 3) * 10) / 10,
       x: spot.x, y: spot.y, raised: now,
       by: state.me, byName: me.name, byColor: me.color,
@@ -638,7 +825,7 @@
       ...(kind === "list" ? { title: "List", items: [] } : null),
       ...(kind === "reminder" ? { date: "", done: false } : null),
       ...(kind === "event" ? { date: TODAY, time: "" } : null),
-      ...(kind === "memory" ? { sticker: STICKERS[Math.floor(Math.random() * STICKERS.length)] } : null),
+      ...(kind === "memory" ? { sticker: STICKERS[Math.floor(Math.random() * STICKERS.length)], image: null, shape: "" } : null),
       ...extra,
     };
     state.notes.set(id, note);
@@ -838,14 +1025,109 @@
         },
       }));
     } else if (kind === "memory") {
-      el.append(h("div", { class: "frame", style: `--shade:${PAPER_HEX[note.paper] || "#b8dcf8"}`, "aria-hidden": "true", text: note.sticker || "📷" }));
+      el.append(photoFrame(note));
       el.append(h("p", { class: "n-body", text: note.body || "" }));
+      /* A polaroid is the thing you reach out and straighten, photo or
+         sticker, so the handle is on every one of them. */
+      el.append(spinHandle(id, note));
     } else {
       el.append(h("p", { class: "n-body", text: note.body || "" }));
     }
 
     el.append(h("div", { class: "n-foot" }, signature(note), threadBlock(id, note)));
   }
+
+  /* The polaroid window: a photo when there is one, a sticker when
+     there is not. The white border around it is the note's own padding. */
+  function photoFrame(note, forEditor) {
+    const shape = note.shape === "wide" || note.shape === "tall" ? note.shape : "";
+    if (note.image) {
+      const src = photoSrc(note.image);
+      if (src) {
+        return h("div", { class: "frame photo " + shape },
+          h("img", {
+            src,
+            alt: note.body ? `Photo: ${note.body}` : "A photo on the fridge",
+            draggable: "false",
+            loading: forEditor ? "eager" : "lazy",
+          }));
+      }
+    }
+    return h("div", {
+      class: "frame " + shape,
+      /* note.paper is read as a fallback for polaroids written before
+         the tint had its own field. */
+      style: `--shade:${PAPER_HEX[note.tint] || PAPER_HEX[note.paper] || "#b8dcf8"}`,
+      "aria-hidden": "true",
+      text: note.sticker || "📷",
+    });
+  }
+
+  /* Drag to turn the photo. Pointer events, so it works with a finger
+     as well as a mouse; the angle is simply where your pointer is
+     relative to the middle of the note. */
+  function spinHandle(id, note) {
+    return h("button", {
+      class: "spin", type: "button",
+      title: "Drag to turn the photo",
+      "aria-label": `Turn the photo. Currently ${Math.round(note.tilt || 0)} degrees. Use the arrow keys.`,
+      text: "⟳",
+      onkeydown: (e) => {
+        const step = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 }[e.key];
+        if (step === undefined) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setTilt(id, (note.tilt || 0) + step * (e.shiftKey ? 5 : 1));
+      },
+      onpointerdown: (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const el = els.get(id);
+        if (!el) return;
+        const box = el.getBoundingClientRect();
+        const cx = box.left + box.width / 2;
+        const cy = box.top + box.height / 2;
+        const angleAt = (ev) => (Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180) / Math.PI;
+        const startAngle = angleAt(e);
+        const startTilt = note.tilt || 0;
+        const handle = e.currentTarget;
+        handle.setPointerCapture(e.pointerId);
+        el.classList.add("spinning");
+
+        const move = (ev) => {
+          const next = startTilt + (angleAt(ev) - startAngle);
+          note.tilt = clamp(Math.round(next * 10) / 10, -30, 30);
+          el.style.setProperty("--tilt", note.tilt + "deg");
+        };
+        const up = () => {
+          handle.removeEventListener("pointermove", move);
+          handle.removeEventListener("pointerup", up);
+          handle.removeEventListener("pointercancel", up);
+          el.classList.remove("spinning");
+          setTilt(id, note.tilt);
+        };
+        handle.addEventListener("pointermove", move);
+        handle.addEventListener("pointerup", up);
+        handle.addEventListener("pointercancel", up);
+      },
+    });
+  }
+
+  function setTilt(id, degrees) {
+    const tilt = clamp(Math.round(Number(degrees) * 10) / 10 || 0, -30, 30);
+    const note = state.notes.get(id);
+    if (!note) return;
+    note.tilt = tilt;
+    const el = els.get(id);
+    if (el) el.style.setProperty("--tilt", tilt + "deg");
+    clearTimeout(setTilt.timers[id]);
+    setTilt.timers[id] = setTimeout(() => store.patchNote(id, { tilt }), 350);
+    const slider = document.querySelector(`.turn input[data-for="${id}"]`);
+    if (slider && slider.valueAsNumber !== tilt) slider.value = String(tilt);
+    const readout = document.querySelector(`.turn output[data-for="${id}"]`);
+    if (readout) readout.textContent = `${tilt > 0 ? "+" : ""}${tilt}°`;
+  }
+  setTilt.timers = {};
 
   /* ---------------- the editor ---------------- */
 
@@ -857,6 +1139,7 @@
     const draft = state.drafts.get(id) || {};
     const val = (k, fallback) => (draft[k] !== undefined ? draft[k] : (note[k] !== undefined ? note[k] : fallback));
     const set = (k, v) => { state.drafts.set(id, { ...(state.drafts.get(id) || {}), [k]: v }); };
+    const merged0 = () => ({ ...note, ...(state.drafts.get(id) || {}) });
     const live = () => {                       // so the pen and paper change under your hand
       const merged = { ...note, ...(state.drafts.get(id) || {}) };
       dressUp(host, merged);
@@ -900,23 +1183,95 @@
         oninput: (e) => set("title", e.currentTarget.value),
       }));
     } else if (kind === "memory") {
-      host.append(h("div", {
-        class: "frame", style: `--shade:${PAPER_HEX[val("paper", "sky")] || "#b8dcf8"}`,
-        "aria-hidden": "true", text: val("sticker", "📷"),
-      }));
+      const merged = merged0;
+      const window_ = h("div", { class: "photo-window" }, photoFrame(merged(), true));
+      host.append(window_);
+
+      const busy = h("p", { class: "photo-busy", hidden: true });
+      const fileInput = h("input", {
+        type: "file", accept: "image/*", id: "photo-" + id,
+        onchange: async (e) => {
+          const file = e.currentTarget.files && e.currentTarget.files[0];
+          e.currentTarget.value = "";
+          if (!file) return;
+          if (!/^image\//.test(file.type)) { toast("Pick an image file."); return; }
+          busy.hidden = false;
+          busy.textContent = "Adding the photo…";
+          try {
+            const ref = await store.uploadPhoto(file, id);
+            if (!ref) throw new Error("The photo did not upload.");
+            /* Written straight through rather than left in the draft: an
+               upload is not something to lose by closing the sheet. */
+            patch(id, { image: ref, example: false });
+            busy.hidden = true;
+            if (isPhone()) reopenSheet(id);
+            else repaint(id);
+          } catch (error) {
+            busy.hidden = false;
+            busy.textContent = error.message || "The photo did not upload.";
+          }
+        },
+      });
+
+      const picker = h("div", { class: "photo-pick" },
+        h("label", { for: "photo-" + id },
+          fileInput,
+          h("span", { text: merged().image ? "Replace photo" : "Add a photo" })),
+        merged().image
+          ? h("button", {
+              type: "button",
+              onclick: () => {
+                patch(id, { image: null });
+                if (isPhone()) reopenSheet(id); else repaint(id);
+              },
+              text: "Remove",
+            })
+          : null);
+
+      host.append(h("div", { class: "field-row" },
+        h("label", { for: "photo-" + id, text: "Photo" }),
+        picker,
+        busy));
+
       host.append(h("textarea", {
-        class: "pen", id: "pen-" + id, style: "min-height:2.8em;margin-top:9px",
+        class: "pen", id: "pen-" + id, style: "min-height:2.8em",
         placeholder: "What was this?", "aria-label": "Caption",
         oninput: (e) => set("body", e.currentTarget.value),
       }, val("body", "")));
+
       host.append(h("div", { class: "field-row" },
-        h("label", { text: "Sticker" }),
-        h("div", { class: "stickers" }, STICKERS.map((s) =>
-          h("button", {
-            type: "button", "aria-label": "Use " + s, text: s, "data-sticker": s,
-            "aria-pressed": val("sticker", "") === s ? "true" : "false",
-            onclick: () => { set("sticker", s); live(); },
-          })))));
+        h("label", { text: "Shape" }),
+        h("div", { class: "pens" },
+          [["", "Square"], ["wide", "Landscape"], ["tall", "Portrait"]].map(([key, label]) =>
+            h("button", {
+              class: "pen-pick", type: "button",
+              "aria-pressed": (val("shape", "") || "") === key ? "true" : "false",
+              onclick: () => {
+                set("shape", key);
+                window_.textContent = "";
+                window_.append(photoFrame(merged(), true));
+                host.querySelectorAll('.pens .pen-pick').forEach((b, i) => {
+                  b.setAttribute("aria-pressed", ["", "wide", "tall"][i] === key ? "true" : "false");
+                });
+              },
+            }, h("span", { class: "nm", text: label }))))));
+
+      if (!merged().image) {
+        host.append(h("div", { class: "field-row" },
+          h("label", { text: "Or a sticker" }),
+          h("div", { class: "stickers" }, STICKERS.map((sticker) =>
+            h("button", {
+              type: "button", "aria-label": "Use " + sticker, text: sticker, "data-sticker": sticker,
+              "aria-pressed": val("sticker", "") === sticker ? "true" : "false",
+              onclick: () => {
+                set("sticker", sticker);
+                window_.textContent = "";
+                window_.append(photoFrame(merged(), true));
+                host.querySelectorAll(".stickers button").forEach((b) =>
+                  b.setAttribute("aria-pressed", b.dataset.sticker === sticker ? "true" : "false"));
+              },
+            })))));
+      }
     } else {
       host.append(h("textarea", {
         class: "pen", id: "pen-" + id,
@@ -961,15 +1316,53 @@
           h("span", { class: "glyph", style: `font-family:${PENS[key].stack}`, "aria-hidden": "true", text: "Aa" }),
           h("span", { class: "nm", text: PENS[key].name })))))); 
 
-    if (kind === "sticky" || kind === "memory") {
+    /* Every note sits at an angle; a photo is the one you actually want
+       to fuss over, so the control is the same either way. */
+    {
+      const current = note.tilt || 0;
+      const readout = h("output", { "data-for": id, text: `${current > 0 ? "+" : ""}${Math.round(current * 10) / 10}°` });
       host.append(h("div", { class: "field-row" },
-        h("label", { text: kind === "memory" ? "Photo tint" : "Paper" }),
+        h("label", { for: "turn-" + id, text: kind === "memory" ? "Turn the photo" : "Turn the note" }),
+        h("div", { class: "turn" },
+          h("input", {
+            type: "range", id: "turn-" + id, "data-for": id,
+            min: "-30", max: "30", step: "0.5", value: String(current),
+            "aria-label": "Rotation in degrees",
+            oninput: (e) => setTilt(id, e.currentTarget.valueAsNumber),
+          }),
+          readout,
+          h("button", { class: "level", type: "button", onclick: () => setTilt(id, 0), text: "Straighten" }))));
+    }
+
+    if (kind === "sticky") {
+      host.append(h("div", { class: "field-row" },
+        h("label", { text: "Paper" }),
         h("div", { class: "swatches", role: "group", "aria-label": "Paper colour" },
           PAPERS.map((p) => h("button", {
             class: "swatch", type: "button", style: `--s:${PAPER_HEX[p]}`, "data-paper": p,
             "aria-label": p + " paper", title: p,
             "aria-pressed": val("paper", "") === p ? "true" : "false",
             onclick: () => { set("paper", p); live(); },
+          })))));
+    }
+
+    /* Only visible while there is no photo: it tints the sticker behind
+       the frame, and a photo covers it entirely. */
+    if (kind === "memory" && !merged0().image) {
+      host.append(h("div", { class: "field-row" },
+        h("label", { text: "Sticker colour" }),
+        h("div", { class: "swatches", role: "group", "aria-label": "Sticker colour" },
+          PAPERS.map((p) => h("button", {
+            class: "swatch", type: "button", style: `--s:${PAPER_HEX[p]}`, "data-tint": p,
+            "aria-label": p, title: p,
+            "aria-pressed": (val("tint", "") || val("paper", "")) === p ? "true" : "false",
+            onclick: () => {
+              set("tint", p);
+              const frame = host.querySelector(".photo-window");
+              if (frame) { frame.textContent = ""; frame.append(photoFrame(merged0(), true)); }
+              host.querySelectorAll("[data-tint]").forEach((b) =>
+                b.setAttribute("aria-pressed", b.dataset.tint === p ? "true" : "false"));
+            },
           })))));
     }
 
@@ -1064,7 +1457,7 @@
       Object.assign(note, fields);
       store.patchNote(id, fields);
     }
-    if (note && !note.body && !note.title && !(note.items || []).length) {
+    if (note && !hasSomethingOnIt(note)) {
       removeNote(id, true);
       return;
     }
@@ -1189,7 +1582,7 @@
     const note = state.notes.get(id);
     if (!note || note.kind === "calendar") return;
     const label = String(note.title || note.body || "this note").trim();
-    const written = note.body || note.title || (note.items || []).length || repliesOf(note).length;
+    const written = hasSomethingOnIt(note) || repliesOf(note).length;
     if (!quiet && written) {
       const ok = await ask({
         title: "Take it off the fridge?",
@@ -1214,6 +1607,11 @@
     if (el) { el.remove(); els.delete(id); }
     layout();
   }
+
+  /* Is there anything on this note worth keeping? A photo counts, which
+     is the whole point: a picture with no caption is still a picture. */
+  const hasSomethingOnIt = (note) =>
+    Boolean(note.body || note.title || note.image || (note.items || []).length);
 
   const itemsOf = (note) => (Array.isArray(note.items) ? note.items.map((i) => ({ ...i })) : []);
 
@@ -1910,7 +2308,8 @@
   }
 
   function applyMeta(obj) {
-    state.meta = { name: "The Family Fridge", ...(obj || {}) };
+    state.meta = { name: "The Family Fridge", finish: DEFAULT_FINISH, ...(obj || {}) };
+    applyFinish(state.meta.finish);
     if (store.account && state.household) state.household.name = state.meta.name;
     const input = $("#household-name");
     if (document.activeElement !== input) input.value = state.meta.name;
@@ -1953,6 +2352,7 @@
   }
 
   async function start() {
+    applyFinish(localStorage.getItem("family-fridge/finish") || DEFAULT_FINISH);
     buildTray();
     fitName();
     const accounts = window.FRIDGE_MODE === "api";
@@ -1978,6 +2378,7 @@
     }
 
     $("#whoami").addEventListener("click", () => (accounts ? openFamily() : openRoster()));
+    $("#doorpick").addEventListener("click", openDoorPicker);
 
     const nameInput = $("#household-name");
     const saveName = () => {
@@ -1999,6 +2400,8 @@
       if (e.key !== "Escape") return;
       const cal = document.querySelector('.sheet-back[aria-label="Add to calendar"]');
       if (cal) { cal.remove(); return; }
+      const door = document.querySelector(".sheet-back[data-door]");
+      if (door) { door.remove(); return; }
       if (document.querySelector(".sheet-back[data-family]")) { closeFamily(); return; }
       if (document.querySelector(".sheet-back[data-roster]")) { closeRoster(); return; }
       if (state.editing) { closeEditor(true); return; }

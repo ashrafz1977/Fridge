@@ -33,7 +33,7 @@ Six magnets sit in the tray at the bottom. Tap one to stick something up.
 | **Appointment** | An index card with a clip | Date and time; shows on the calendar |
 | **Announcement** | A printed notice held on with tape | Big condensed type for things nobody may miss |
 | **List** | A lined pad | A running checklist — groceries, packing, chores |
-| **Memory** | A polaroid | A sticker and a caption |
+| **Photo** | A polaroid | A real photo or a sticker, turned by hand |
 
 Every note also carries:
 
@@ -45,6 +45,43 @@ Every note also carries:
   magnet colour. A reply is a conversation about the note, not an edit of it,
   so it leaves the note's own last-updated tag alone.
 - **Add to calendar**, on anything with a date. See below.
+- **An angle.** Every note sits at one. Drag the chrome handle on a
+  polaroid's corner to turn it, or use the slider in any note's editor —
+  with a **Straighten** button for when you have had enough of the charm.
+
+## Photos
+
+A **Photo** note is a polaroid: a white card with the picture inside its
+border. Add one from the camera or the library, crop it square, landscape or
+portrait, and turn it to whatever angle looks right.
+
+Pictures are scaled down in the browser before they go anywhere — a phone
+camera's 4000px, 6MB original is nobody's idea of a fridge magnet — and then
+stored according to which build you are running:
+
+| Build | Where the picture lives |
+| --- | --- |
+| This server | A private Supabase Storage bucket, served back through `/api/photos` after a membership check |
+| Artifact | The Artifact `assets` capability; the note holds only the asset id |
+| Offline | Scaled harder and kept in `localStorage` on that one device |
+
+The bucket is private and has no policies granting the `authenticated` role
+anything: only the server touches it, and it checks household membership on
+every read and write. Signed URLs are avoided deliberately — they expire, and
+a photo on a fridge is meant to stay there. Replacing a photo or taking the
+note down deletes the old object, so the bucket does not fill with pictures
+nothing points at.
+
+## The door
+
+Eight finishes, from the name plate: brushed steel, white enamel, graphite,
+slate, retro mint, retro butter, retro coral, and an oak panel — each with its
+own grain and its own trim, chrome or brass.
+
+The finish belongs to the **household**, not to the person, because it is the
+fridge everybody looks at. A finish supplies two colours, a grain and a trim;
+the light or dark theme then lays a scrim over whichever one is chosen, so one
+rule dims all eight rather than each finish needing a dark twin.
 
 A month calendar hangs on the door as a seventh, permanent sheet, with a
 coloured pip on every day that has something on it — one pip per person. On a
@@ -125,11 +162,14 @@ email-and-password route works with none of that.
 1. Create a project at [supabase.com](https://supabase.com).
 2. Open the **SQL editor**, paste in all of `supabase/schema.sql`, and run it.
    It is written to be re-runnable, so applying it again later is harmless.
-3. **Settings → API** gives you three values for `server/.env`:
+3. Photos need the storage bucket, which `schema.sql` creates for you. If
+   you would rather check: **Storage** should list a private bucket called
+   `fridge-photos`.
+4. **Settings → API** gives you three values for `server/.env`:
    `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`.
-4. **Authentication → URL Configuration**: set the Site URL to your `APP_URL`
+5. **Authentication → URL Configuration**: set the Site URL to your `APP_URL`
    and add `<APP_URL>/auth/callback` to the redirect allow-list.
-5. **Authentication → Providers → Email** is on by default. Leave "Confirm
+6. **Authentication → Providers → Email** is on by default. Leave "Confirm
    email" on unless you are just testing; the app handles both settings.
 
 Supabase's built-in email sender is rate-limited to a handful per hour and is
@@ -248,6 +288,9 @@ one with sign-up, groups and invitations.
   has been invited, your other groups, and signing out.
 
 All note and reply text is written to the DOM with `textContent`, never
-`innerHTML`, because shared data is untrusted input. The server sends a strict
+`innerHTML`, because shared data is untrusted input. Confirmations are drawn
+in the page rather than with `window.confirm`, which a sandboxed frame ignores
+outright — it returns false without prompting, which once made every "take it
+off the fridge" button a silent no-op. The server sends a strict
 `Content-Security-Policy` with no inline script and no inline style, which is
 why every page links a separate `.js` file and styles go through the CSSOM.

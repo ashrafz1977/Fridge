@@ -16,6 +16,7 @@ import { authRouter, meRouter } from "./routes/auth.js";
 import { householdRouter } from "./routes/households.js";
 import { inviteRouter } from "./routes/invites.js";
 import { noteRouter, replyRouter } from "./routes/notes.js";
+import { photoRouter } from "./routes/photos.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(here, "../../web");
@@ -33,7 +34,7 @@ app.use((req, res, next) => {
     "script-src 'self'",
     "style-src 'self' https://fonts.googleapis.com",
     "font-src https://fonts.gstatic.com",
-    "img-src 'self' data:",
+    "img-src 'self' data: blob:",
     "connect-src 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
@@ -59,6 +60,9 @@ app.use("/api/me", meRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/households", householdRouter);
 app.use("/api", inviteRouter);                  // /api/households/:id/invitations, /api/invitations/*
+/* Before noteRouter: the photo upload takes a raw image body, not JSON,
+   so it must not fall through to the JSON note routes. */
+app.use("/api", photoRouter);
 app.use("/api/notes", noteRouter);
 app.use("/api/replies", replyRouter);
 

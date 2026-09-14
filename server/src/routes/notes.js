@@ -5,6 +5,7 @@
 import { Router } from "express";
 import { requireHousehold, requireUser } from "../session.js";
 import { NewNote, PatchNote, NewReply, NoteId, parseOr400 } from "../validate.js";
+import { forgetPhoto } from "./photos.js";
 
 export const noteRouter = Router();
 
@@ -32,6 +33,9 @@ function toNote(row, people, replies) {
     date: row.date || "",
     time: row.time || "",
     items: Array.isArray(row.items) ? row.items : [],
+    image: row.image ? "photo:" + row.image : null,
+    shape: row.shape || "",
+    tint: row.tint || undefined,
     by: row.author_id || null,
     byName: who ? who.name : "",
     byColor: who ? who.color : "#5c6675",
@@ -92,7 +96,10 @@ noteRouter.get("/", async (req, res, next) => {
   for (const row of noteRows || []) notes[row.id] = toNote(row, people, replies);
 
   return res.json({
-    household: { id: req.household.id, name: req.household.name, role: req.household.role },
+    household: {
+      id: req.household.id, name: req.household.name,
+      role: req.household.role, finish: req.household.finish,
+    },
     me: { id: req.user.id, color: req.household.color },
     members: [...people.entries()].map(([id, p]) => ({ id, name: p.name, color: p.color })),
     notes,
@@ -103,9 +110,12 @@ noteRouter.get("/", async (req, res, next) => {
    are decided here, never sent. */
 function columnsFrom(body) {
   const row = {};
-  for (const key of ["kind", "body", "title", "pen", "paper", "sticker", "tilt", "x", "y", "raised", "done", "date", "time", "items"]) {
+  for (const key of ["kind", "body", "title", "pen", "paper", "sticker", "tilt", "x", "y", "raised", "done", "date", "time", "items", "shape", "tint"]) {
     if (body[key] !== undefined) row[key] = body[key];
   }
+  /* image is written by the photo route, which owns the bucket. The one
+     thing a client may say about it is "take it off". */
+  if (body.image === null) row.image = null;
   if (row.date === "") row.date = null;
   if (row.time === "") row.time = null;
   return row;
@@ -156,6 +166,14 @@ noteRouter.patch("/:noteId", async (req, res, next) => {
   const columns = columnsFrom(body);
   if (!Object.keys(columns).length) return res.json({ ok: true, changed: false });
 
+  let dropped = null;
+  if (columns.image === null) {
+    const { data: before } = await req.supabase
+      .from("notes").select("image")
+      .eq("household_id", req.household.id).eq("id", id.data).maybeSingle();
+    dropped = before && before.image;
+  }
+
   const { data, error } = await req.supabase
     .from("notes")
     .update(columns)
@@ -166,6 +184,7 @@ noteRouter.patch("/:noteId", async (req, res, next) => {
   if (!data || !data.length) {
     return res.status(404).json({ error: "gone", message: "That note is no longer on the fridge." });
   }
+  if (dropped) await forgetPhoto(dropped);
   return res.json({ ok: true, changed: true });
 });
 
@@ -173,12 +192,19 @@ noteRouter.delete("/:noteId", async (req, res, next) => {
   const id = NoteId.safeParse(req.params.noteId);
   if (!id.success) return res.status(400).json({ error: "bad_id", message: "Bad note id." });
 
+  /* Read the photo pointer before the row goes, or nothing will know
+     what to clean out of the bucket. */
+  const { data: doomed } = await req.supabase
+    .from("notes").select("image")
+    .eq("household_id", req.household.id).eq("id", id.data).maybeSingle();
+
   const { error } = await req.supabase
     .from("notes")
     .delete()
     .eq("household_id", req.household.id)
     .eq("id", id.data);
   if (error) return next(error);
+  if (doomed && doomed.image) await forgetPhoto(doomed.image);
   return res.json({ ok: true });
 });
 
